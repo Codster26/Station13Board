@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Station 13 | Manage Members</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero hero--with-link">
+      <h1>Manage Members</h1>
+      <details class="nav-menu">
+        <summary class="menu-toggle">
+          <span class="sr-only">Open navigation</span>
+          <span class="menu-toggle__line"></span>
+          <span class="menu-toggle__line"></span>
+          <span class="menu-toggle__line"></span>
+        </summary>
+        <nav class="top-links top-links--menu">
+          <a class="top-link" href="index.html">Back To Riding Board</a>
+          <a class="top-link" href="staffing.html">Staffing Hours</a>
+          <a class="top-link" href="weekly.html">Weekly Staffing</a>
+          <a class="top-link" href="archived.html">Archived Hours</a>
+          <a class="top-link" href="daily-crews.html">Daily Crews</a>
+        </nav>
+      </details>
+    </header>
+
+    <main class="board-layout">
+      <section class="manage-grid">
+        <article class="manage-card">
+          <h2>Active Members</h2>
+          <textarea id="activeMembersInput" class="manage-input" spellcheck="false"></textarea>
+        </article>
+
+        <article class="manage-card">
+          <h2>Engine Driver</h2>
+          <textarea id="engineDriverInput" class="manage-input" spellcheck="false"></textarea>
+        </article>
+
+        <article class="manage-card">
+          <h2>Rescue Driver</h2>
+          <textarea id="rescueDriverInput" class="manage-input" spellcheck="false"></textarea>
+        </article>
+
+        <article class="manage-card">
+          <h2>Tower Driver</h2>
+          <textarea id="towerDriverInput" class="manage-input" spellcheck="false"></textarea>
+        </article>
+
+        <article class="manage-card">
+          <h2>Officer</h2>
+          <textarea id="officerInput" class="manage-input" spellcheck="false"></textarea>
+        </article>
+
+        <article class="manage-card">
+          <h2>Nozzle / Backup / Support</h2>
+          <textarea id="nozzleBackupSupportInput" class="manage-input" spellcheck="false"></textarea>
+        </article>
+
+        <article class="manage-card">
+          <h2>Bar / OVM / Can / Roof</h2>
+          <textarea id="barOvmCanRoofInput" class="manage-input" spellcheck="false"></textarea>
+        </article>
+
+        <article class="manage-card">
+          <h2>Command 13</h2>
+          <textarea id="command13Input" class="manage-input" spellcheck="false"></textarea>
+        </article>
+      </section>
+
+      <section class="manage-actions">
+        <button id="saveSettingsButton" class="action-button">Save Changes</button>
+        <button id="resetSettingsButton" class="action-button action-button--ghost">Reset To Defaults</button>
+        <p id="saveStatus" class="save-status" aria-live="polite">Use `Name - #RRGGBB` on any list to assign a fill color.</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="data-store.js"></script>
+  <script src="manage.js"></script>
+</body>
+</html>
