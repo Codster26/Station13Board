@@ -32,6 +32,9 @@ const crewStatusColorsArchived = {
 };
 
 function loadArchivedAssignments() {
+  if (window.storageService) {
+    return window.storageService.loadValue("archivedAssignments", {}) || {};
+  }
   try {
     const raw = localStorage.getItem(ARCHIVED_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -41,6 +44,10 @@ function loadArchivedAssignments() {
 }
 
 function saveArchivedAssignments(data) {
+  if (window.storageService) {
+    window.storageService.saveValue("archivedAssignments", data);
+    return;
+  }
   localStorage.setItem(ARCHIVED_STORAGE_KEY, JSON.stringify(data));
 }
 
@@ -322,4 +329,11 @@ function renderArchivedPage() {
   }
 }
 
-renderArchivedPage();
+async function initArchivedPage() {
+  if (window.storageService) {
+    await window.storageService.initializePersistence();
+  }
+  renderArchivedPage();
+}
+
+initArchivedPage();

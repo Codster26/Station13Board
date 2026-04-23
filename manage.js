@@ -84,4 +84,11 @@ resetButton.addEventListener("click", () => {
   showStatus("Lists reset to defaults. Current seat assignments were kept.");
 });
 
-writeListsToForm(loadBoardData());
+async function initManagePage() {
+  if (window.storageService) {
+    await window.storageService.initializePersistence();
+  }
+  writeListsToForm(loadBoardData());
+}
+
+initManagePage();

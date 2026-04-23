@@ -76,6 +76,9 @@ const dailyCrewApparatus = [
 ];
 
 function loadDailyCrewsData() {
+  if (window.storageService) {
+    return window.storageService.loadValue("dailyCrewsData", {}) || {};
+  }
   try {
     const raw = localStorage.getItem(DAILY_CREWS_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -85,10 +88,17 @@ function loadDailyCrewsData() {
 }
 
 function saveDailyCrewsData(data) {
+  if (window.storageService) {
+    window.storageService.saveValue("dailyCrewsData", data);
+    return;
+  }
   localStorage.setItem(DAILY_CREWS_STORAGE_KEY, JSON.stringify(data));
 }
 
 function loadDailyCrewsShiftAssignments() {
+  if (window.storageService) {
+    return window.storageService.loadValue("weeklyAssignments", {}) || {};
+  }
   try {
     const raw = localStorage.getItem(DAILY_CREWS_WEEKLY_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -98,6 +108,10 @@ function loadDailyCrewsShiftAssignments() {
 }
 
 function saveDailyCrewsShiftAssignments(data) {
+  if (window.storageService) {
+    window.storageService.saveValue("weeklyAssignments", data);
+    return;
+  }
   localStorage.setItem(DAILY_CREWS_WEEKLY_STORAGE_KEY, JSON.stringify(data));
 }
 
@@ -402,4 +416,11 @@ function renderDailyCrewsPage() {
   });
 }
 
-renderDailyCrewsPage();
+async function initDailyCrewsPage() {
+  if (window.storageService) {
+    await window.storageService.initializePersistence();
+  }
+  renderDailyCrewsPage();
+}
+
+initDailyCrewsPage();

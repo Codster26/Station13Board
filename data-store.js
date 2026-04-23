@@ -422,21 +422,26 @@ function mergeWithDefaults(stored) {
 }
 
 function loadBoardData() {
-  try {
-    const raw = localStorage.getItem(BOARD_STORAGE_KEY);
-    if (!raw) {
-      return mergeWithDefaults(DEFAULT_BOARD_DATA);
-    }
-    const parsed = JSON.parse(raw);
-    return mergeWithDefaults(parsed);
-  } catch (error) {
-    return mergeWithDefaults(DEFAULT_BOARD_DATA);
-  }
+  const stored = window.storageService
+    ? window.storageService.loadValue("boardData", DEFAULT_BOARD_DATA)
+    : (() => {
+        try {
+          const raw = localStorage.getItem(BOARD_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : DEFAULT_BOARD_DATA;
+        } catch (error) {
+          return DEFAULT_BOARD_DATA;
+        }
+      })();
+  return mergeWithDefaults(stored || DEFAULT_BOARD_DATA);
 }
 
 function saveBoardData(data) {
   const normalized = mergeWithDefaults(data);
-  localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(normalized));
+  if (window.storageService) {
+    window.storageService.saveValue("boardData", normalized);
+  } else {
+    localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(normalized));
+  }
   return normalized;
 }
 

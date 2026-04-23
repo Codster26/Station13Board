@@ -36,6 +36,9 @@ function formatColumnLabel(date, isYesterday = false) {
 }
 
 function loadHoursData() {
+  if (window.storageService) {
+    return window.storageService.loadValue("staffingHours", {}) || {};
+  }
   try {
     const raw = localStorage.getItem(STAFFING_STORAGE_KEY);
     if (!raw) {
@@ -48,6 +51,10 @@ function loadHoursData() {
 }
 
 function saveHoursData(data) {
+  if (window.storageService) {
+    window.storageService.saveValue("staffingHours", data);
+    return;
+  }
   localStorage.setItem(STAFFING_STORAGE_KEY, JSON.stringify(data));
 }
 
@@ -157,4 +164,11 @@ function renderStaffingTable() {
   });
 }
 
-renderStaffingTable();
+async function initStaffingPage() {
+  if (window.storageService) {
+    await window.storageService.initializePersistence();
+  }
+  renderStaffingTable();
+}
+
+initStaffingPage();

@@ -1,0 +1,9 @@
+{
+  "name": "station13board",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Station 13 board with shared server-backed state",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

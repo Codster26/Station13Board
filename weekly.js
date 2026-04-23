@@ -32,6 +32,9 @@ const crewStatusColorsWeekly = {
 };
 
 function loadWeeklyAssignments() {
+  if (window.storageService) {
+    return window.storageService.loadValue("weeklyAssignments", {}) || {};
+  }
   try {
     const raw = localStorage.getItem(WEEKLY_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -41,6 +44,10 @@ function loadWeeklyAssignments() {
 }
 
 function saveWeeklyAssignments(data) {
+  if (window.storageService) {
+    window.storageService.saveValue("weeklyAssignments", data);
+    return;
+  }
   localStorage.setItem(WEEKLY_STORAGE_KEY, JSON.stringify(data));
 }
 
@@ -322,4 +329,11 @@ function renderWeeklyPage() {
   }
 }
 
-renderWeeklyPage();
+async function initWeeklyPage() {
+  if (window.storageService) {
+    await window.storageService.initializePersistence();
+  }
+  renderWeeklyPage();
+}
+
+initWeeklyPage();
