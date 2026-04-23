@@ -2,8 +2,12 @@
   "name": "station13board",
   "version": "1.0.0",
   "private": true,
-  "description": "Station 13 board with shared server-backed state",
+  "description": "Station 13 board with Cloudflare Durable Object persistence",
   "scripts": {
-    "start": "node server.js"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.84.1"
   }
 }
