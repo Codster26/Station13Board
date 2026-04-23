@@ -11,6 +11,8 @@ const fields = {
 
 const saveButton = document.getElementById("saveSettingsButton");
 const resetButton = document.getElementById("resetSettingsButton");
+const previewRolloverButton = document.getElementById("previewRolloverButton");
+const runRolloverButton = document.getElementById("runRolloverButton");
 const saveStatus = document.getElementById("saveStatus");
 
 function writeListsToForm(boardData) {
@@ -63,6 +65,16 @@ function showStatus(message, isError = false) {
   saveStatus.classList.toggle("save-status--error", isError);
 }
 
+function getLocalDateKey(offsetDays = 0) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + offsetDays);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 saveButton.addEventListener("click", () => {
   const currentData = loadBoardData();
   const updatedLists = readListsFromForm();
@@ -82,6 +94,53 @@ resetButton.addEventListener("click", () => {
   });
   writeListsToForm(resetData);
   showStatus("Lists reset to defaults. Current seat assignments were kept.");
+});
+
+previewRolloverButton?.addEventListener("click", async () => {
+  showStatus("Checking midnight rollover preview...");
+
+  try {
+    const response = await fetch("/api/admin/rollover-preview", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("Preview failed");
+    }
+
+    const summary = await response.json();
+    showStatus(`Preview: ${summary.copiedEntries} entries from ${summary.sourceDateKey} will move into Archived Hours. Weekly dates advance automatically because they are stored by actual day.`);
+  } catch (error) {
+    showStatus("Could not preview rollover. Make sure you are running through Wrangler/Cloudflare.", true);
+  }
+});
+
+runRolloverButton?.addEventListener("click", async () => {
+  showStatus("Running midnight rollover test...");
+
+  try {
+    const todayKey = getLocalDateKey(0);
+    const yesterdayKey = getLocalDateKey(-1);
+    const response = await fetch("/api/admin/rollover", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        sourceDateKey: todayKey,
+        archiveDateKey: yesterdayKey,
+        clearSourceWeekly: false,
+        pruneArchived: false
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Rollover failed");
+    }
+
+    const result = await response.json();
+    const summary = result.summary || {};
+    showStatus(`Rollover test ran. Copied ${summary.copiedEntries || 0} entries from today's weekly board into the visible Archived Yesterday slot without clearing Weekly Staffing.`);
+  } catch (error) {
+    showStatus("Could not run rollover test. Make sure you are running through Wrangler/Cloudflare.", true);
+  }
 });
 
 async function initManagePage() {

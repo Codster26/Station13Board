@@ -27,6 +27,68 @@ const shiftConfigs = [
   { id: "d", title: "D - Shift 1800 - 2400", crew: "Staffed 2 Crews w/ Tower" }
 ];
 
+const APPARATUS_SLOT_IDS = ["slot1", "slot2", "slot3"];
+
+const APPARATUS_TYPES = {
+  engine132: {
+    id: "engine132",
+    title: "Engine 13-2",
+    modifier: "apparatus-card--engine",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "engineDriver", fallback: "Kline, A." },
+      { id: "officer", label: "Officer", poolKey: "officer", fallback: "May, J." },
+      { id: "nozzle", label: "Nozzle", poolKey: "nozzleBackupSupport", fallback: "Stamp, N." },
+      { id: "layout", label: "Layout", poolKey: "activeMembers", fallback: "Ryen, R." },
+      { id: "backup", label: "Backup", poolKey: "nozzleBackupSupport", fallback: "Greipp, R." },
+      { id: "support", label: "Support", poolKey: "nozzleBackupSupport", fallback: "Ride A Long" }
+    ]
+  },
+  engine135: {
+    id: "engine135",
+    title: "Engine 13-5",
+    modifier: "apparatus-card--engine",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "engineDriver", fallback: OPEN_ASSIGNMENT },
+      { id: "officer", label: "Officer", poolKey: "officer", fallback: OPEN_ASSIGNMENT },
+      { id: "nozzle", label: "Nozzle", poolKey: "nozzleBackupSupport", fallback: OPEN_ASSIGNMENT },
+      { id: "layout", label: "Layout", poolKey: "activeMembers", fallback: OPEN_ASSIGNMENT },
+      { id: "backup", label: "Backup", poolKey: "nozzleBackupSupport", fallback: OPEN_ASSIGNMENT },
+      { id: "support", label: "Support", poolKey: "nozzleBackupSupport", fallback: OPEN_ASSIGNMENT }
+    ]
+  },
+  tower13: {
+    id: "tower13",
+    title: "Tower 13",
+    modifier: "apparatus-card--tower",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "towerDriver", fallback: "MacCormac, W." },
+      { id: "officer", label: "Officer", poolKey: "officer", fallback: "Tanler, K." },
+      { id: "bar", label: "Bar", poolKey: "barOvmCanRoof", fallback: "Delvalle, J." },
+      { id: "ovm", label: "OVM", poolKey: "barOvmCanRoof", fallback: "Newton, C." },
+      { id: "can", label: "Can", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT },
+      { id: "roof", label: "Roof", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT }
+    ]
+  },
+  rescue13: {
+    id: "rescue13",
+    title: "Rescue 13",
+    modifier: "apparatus-card--rescue",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "rescueDriver", fallback: OPEN_ASSIGNMENT },
+      { id: "officer", label: "Officer", poolKey: "officer", fallback: OPEN_ASSIGNMENT },
+      { id: "bar", label: "Bar", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT },
+      { id: "ovm", label: "OVM", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT },
+      { id: "can", label: "Can", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT },
+      { id: "roof", label: "Roof", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT }
+    ]
+  }
+};
+
+const APPARATUS_OPTIONS = Object.values(APPARATUS_TYPES).map((apparatus) => apparatus.title);
+const APPARATUS_LABEL_TO_ID = Object.fromEntries(
+  Object.values(APPARATUS_TYPES).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
+);
+
 const slotCount = 15;
 const DAILY_BLANK_VERSION = "1";
 const WEEKLY_STORAGE_KEY = "station13-weekly-calendar";
@@ -58,6 +120,20 @@ const crewStatusColors = {
 const defaultDailyAssignments = {};
 
 function getPoolForSeat(boardData, seatId) {
+  if (seatId.startsWith("rig-")) {
+    const [, slotId, positionId] = seatId.split("-");
+    const apparatusSlots = getApparatusSlots(boardData);
+    const apparatusType = APPARATUS_TYPES[apparatusSlots[slotId]];
+    const position = apparatusType?.positions.find((item) => item.id === positionId);
+    const poolKey = position?.poolKey;
+
+    if (!poolKey || poolKey === "activeMembers") {
+      return boardData.activeMembers || [];
+    }
+
+    return boardData.rolePools[poolKey] || [];
+  }
+
   const poolKey = seatPoolMap[seatId];
   if (poolKey) {
     if (poolKey === "command13") {
@@ -66,6 +142,38 @@ function getPoolForSeat(boardData, seatId) {
     return boardData.rolePools[poolKey] || [];
   }
   return boardData.activeMembers || [];
+}
+
+function getApparatusSlots(boardData) {
+  return {
+    slot1: boardData.assignments?.__apparatus_slots?.slot1 || "engine132",
+    slot2: boardData.assignments?.__apparatus_slots?.slot2 || "tower13",
+    slot3: boardData.assignments?.__apparatus_slots?.slot3 || "rescue13"
+  };
+}
+
+function getSeatPoolKey(boardData, seatId) {
+  if (seatId.startsWith("rig-")) {
+    const [, slotId, positionId] = seatId.split("-");
+    const apparatusSlots = getApparatusSlots(boardData);
+    const apparatusType = APPARATUS_TYPES[apparatusSlots[slotId]];
+    const position = apparatusType?.positions.find((item) => item.id === positionId);
+    return position?.poolKey || "activeMembers";
+  }
+
+  return seatPoolMap[seatId] || "activeMembers";
+}
+
+function getFallbackForSeat(boardData, seatId, fallbackValue = OPEN_ASSIGNMENT) {
+  if (seatId.startsWith("rig-")) {
+    const [, slotId, positionId] = seatId.split("-");
+    const apparatusSlots = getApparatusSlots(boardData);
+    const apparatusType = APPARATUS_TYPES[apparatusSlots[slotId]];
+    const position = apparatusType?.positions.find((item) => item.id === positionId);
+    return position?.fallback || OPEN_ASSIGNMENT;
+  }
+
+  return fallbackValue;
 }
 
 function buildOptions(pool, selectedValue, includeOpenAssignment = true) {
@@ -137,6 +245,148 @@ function applyMemberFillColor(select, colorMap) {
   select.style.color = textColor || "";
 }
 
+function migrateLegacyApparatusAssignments(boardData) {
+  const savedAssignments = { ...(boardData.assignments || {}) };
+  if (savedAssignments.__apparatus_layout_version === "2") {
+    return boardData;
+  }
+
+  const legacyMap = {
+    slot1: {
+      type: "engine132",
+      seats: {
+        driver: "engine-driver",
+        officer: "engine-officer",
+        nozzle: "engine-nozzle",
+        layout: "engine-layout",
+        backup: "engine-backup",
+        support: "engine-support"
+      }
+    },
+    slot2: {
+      type: "tower13",
+      seats: {
+        driver: "tower-driver",
+        officer: "tower-officer",
+        bar: "tower-bar",
+        ovm: "tower-ovm",
+        can: "tower-can",
+        roof: "tower-roof"
+      }
+    },
+    slot3: {
+      type: "rescue13",
+      seats: {
+        driver: "rescue-driver",
+        officer: "rescue-officer",
+        bar: "rescue-bar",
+        ovm: "rescue-ovm",
+        can: "rescue-can",
+        roof: "rescue-roof"
+      }
+    }
+  };
+
+  const nextSlots = getApparatusSlots(boardData);
+  APPARATUS_SLOT_IDS.forEach((slotId) => {
+    const legacyConfig = legacyMap[slotId];
+    if (!savedAssignments.__apparatus_slots?.[slotId]) {
+      nextSlots[slotId] = legacyConfig.type;
+    }
+
+    Object.entries(legacyConfig.seats).forEach(([positionId, legacySeatId]) => {
+      const slotSeatId = `rig-${slotId}-${positionId}`;
+      if (savedAssignments[slotSeatId] === undefined && savedAssignments[legacySeatId] !== undefined) {
+        savedAssignments[slotSeatId] = savedAssignments[legacySeatId];
+      }
+    });
+  });
+
+  savedAssignments.__apparatus_slots = nextSlots;
+  savedAssignments.__apparatus_layout_version = "2";
+
+  return saveBoardData({
+    ...boardData,
+    assignments: savedAssignments
+  });
+}
+
+function renderApparatusCards() {
+  const grid = document.getElementById("assignmentGrid");
+  if (!grid) {
+    return;
+  }
+
+  const boardData = migrateLegacyApparatusAssignments(loadBoardData());
+  const apparatusSlots = getApparatusSlots(boardData);
+
+  grid.innerHTML = "";
+
+  APPARATUS_SLOT_IDS.forEach((slotId) => {
+    const apparatusId = apparatusSlots[slotId];
+    const apparatus = APPARATUS_TYPES[apparatusId] || APPARATUS_TYPES.engine132;
+
+    const card = document.createElement("article");
+    card.className = `apparatus-card ${apparatus.modifier}`;
+
+    const header = document.createElement("header");
+    header.className = "apparatus-header";
+    const headerField = createSearchCombobox({
+      className: "apparatus-header-input",
+      options: APPARATUS_OPTIONS,
+      value: apparatus.title,
+      ariaLabel: `${slotId} apparatus`,
+      onCommit: (value, input) => {
+        const chosenId = APPARATUS_LABEL_TO_ID[String(value || "").toLowerCase()];
+        const nextId = chosenId || apparatusId;
+        input.value = APPARATUS_TYPES[nextId].title;
+        if (nextId === apparatusId) {
+          return;
+        }
+
+        const latestData = loadBoardData();
+        const latestAssignments = { ...(latestData.assignments || {}) };
+        latestAssignments.__apparatus_slots = {
+          ...getApparatusSlots(latestData),
+          [slotId]: nextId
+        };
+        saveBoardData({
+          ...latestData,
+          assignments: latestAssignments
+        });
+        renderApparatusCards();
+        populateBoardDropdowns();
+      }
+    });
+    header.appendChild(headerField.root);
+    card.appendChild(header);
+
+    const seatList = document.createElement("div");
+    seatList.className = "seat-list";
+
+    apparatus.positions.forEach((position) => {
+      const row = document.createElement("div");
+      row.className = "seat-row";
+
+      const role = document.createElement("span");
+      role.className = "seat-role";
+      role.textContent = position.label;
+      row.appendChild(role);
+
+      const select = document.createElement("select");
+      select.className = position.fallback === OPEN_ASSIGNMENT ? "seat-input seat-input--empty" : "seat-input";
+      select.dataset.seat = `rig-${slotId}-${position.id}`;
+      select.dataset.default = position.fallback;
+      row.appendChild(select);
+
+      seatList.appendChild(row);
+    });
+
+    card.appendChild(seatList);
+    grid.appendChild(card);
+  });
+}
+
 function loadWeeklyAssignments() {
   if (window.storageService) {
     return window.storageService.loadValue("weeklyAssignments", {}) || {};
@@ -171,10 +421,10 @@ function populateBoardDropdowns() {
 
   selects.forEach((select) => {
     const seatId = select.dataset.seat;
-    const fallbackValue = select.dataset.default || OPEN_ASSIGNMENT;
+    const fallbackValue = getFallbackForSeat(boardData, seatId, select.dataset.default || OPEN_ASSIGNMENT);
     const selectedValue = boardData.assignments[seatId] || fallbackValue;
     const normalizedValue = selectedValue === OPEN_ASSIGNMENT ? "" : selectedValue;
-    const poolKey = seatPoolMap[seatId] || "activeMembers";
+    const poolKey = getSeatPoolKey(boardData, seatId);
     const pool = getPoolForSeat(boardData, seatId);
     const options = buildOptions(pool, normalizedValue, false);
     const colorMap = getColorRuleMap(boardData, poolKey);
@@ -448,6 +698,7 @@ async function initBoardPage() {
   if (window.storageService) {
     await window.storageService.initializePersistence();
   }
+  renderApparatusCards();
   populateBoardDropdowns();
   renderDailyCalendar();
 }

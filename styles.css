@@ -334,6 +334,31 @@ body::before {
   white-space: nowrap;
 }
 
+.apparatus-header .search-combobox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apparatus-header-input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #f7fbff;
+  font-family: "Cowboy Movie", "Cinzel", serif;
+  font-size: clamp(1.95rem, 2.9vw, 2.8rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1;
+  padding: 0;
+}
+
+.apparatus-header-input::placeholder {
+  color: rgba(247, 251, 255, 0.7);
+}
+
 .seat-list {
   padding: 5px 18px 13px;
 }
@@ -757,11 +782,13 @@ body::before {
   padding: 10px 12px;
   text-align: center;
   font-family: "Cowboy Movie", "Cinzel", serif;
-  font-size: 1.05rem;
+  font-size: 1.52rem;
   font-weight: 700;
   color: #f7fbff;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   text-transform: uppercase;
+  letter-spacing: 0.18em;
+  line-height: 1;
 }
 
 .daily-crews-unit--engine .daily-crews-unit-header {
