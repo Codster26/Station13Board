@@ -7,7 +7,8 @@ const DEFAULT_STATE = {
   dailyCrewsData: null,
   staffingHours: null,
   systemMeta: {
-    lastScheduledSourceDate: null
+    lastScheduledSourceDate: null,
+    displayDateKey: null
   }
 };
 
@@ -61,6 +62,7 @@ function runDailyRollover(state, {
   sourceDateKey,
   archiveDateKey = sourceDateKey,
   currentDateKey,
+  nextDisplayDateKey = currentDateKey,
   clearSourceWeekly = true,
   pruneArchived = true
 }) {
@@ -111,6 +113,10 @@ function runDailyRollover(state, {
 
   nextState.weeklyAssignments = weeklyAssignments;
   nextState.archivedAssignments = archivedAssignments;
+  nextState.systemMeta = {
+    ...(nextState.systemMeta || {}),
+    displayDateKey: nextDisplayDateKey || currentDateKey || null
+  };
   return nextState;
 }
 
@@ -171,6 +177,7 @@ function buildRolloverSummary({ sourceDateKey, archiveDateKey, currentDateKey, s
     sourceDateKey,
     archiveDateKey,
     currentDateKey,
+    displayDateKey: state.systemMeta?.displayDateKey || null,
     copiedEntries: weeklyCount,
     archivedEntriesForTargetDate: archivedCount
   };
@@ -241,6 +248,7 @@ export default {
         sourceDateKey,
         archiveDateKey: body.archiveDateKey || sourceDateKey,
         currentDateKey,
+        nextDisplayDateKey: body.nextDisplayDateKey || currentDateKey,
         clearSourceWeekly: body.clearSourceWeekly !== false,
         pruneArchived: body.pruneArchived !== false
       });
@@ -278,6 +286,7 @@ export default {
       sourceDateKey,
       archiveDateKey: sourceDateKey,
       currentDateKey,
+      nextDisplayDateKey: currentDateKey,
       clearSourceWeekly: true,
       pruneArchived: true
     });

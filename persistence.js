@@ -3,7 +3,8 @@ const PERSISTENCE_KEYS = {
   weeklyAssignments: "station13-weekly-calendar",
   archivedAssignments: "station13-archived-calendar",
   dailyCrewsData: "station13-daily-crews",
-  staffingHours: "station13-staffing-hours"
+  staffingHours: "station13-staffing-hours",
+  systemMeta: "station13-system-meta"
 };
 
 const persistenceState = {};

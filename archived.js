@@ -65,6 +65,17 @@ function addArchivedDays(date, offset) {
   return next;
 }
 
+function getArchivedAnchorDate() {
+  const overrideDateKey = window.storageService?.loadValue("systemMeta", {})?.displayDateKey;
+  if (overrideDateKey) {
+    return new Date(`${overrideDateKey}T00:00:00`);
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
 function formatArchivedDateLong(date) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -320,8 +331,7 @@ function renderArchivedPage() {
   const assignments = loadArchivedAssignments();
 
   stack.innerHTML = "";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getArchivedAnchorDate();
 
   for (let i = 1; i <= 7; i += 1) {
     const day = addArchivedDays(today, -i);

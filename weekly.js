@@ -65,6 +65,17 @@ function addDays(date, offset) {
   return next;
 }
 
+function getWeeklyAnchorDate() {
+  const overrideDateKey = window.storageService?.loadValue("systemMeta", {})?.displayDateKey;
+  if (overrideDateKey) {
+    return new Date(`${overrideDateKey}T00:00:00`);
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
 function formatDateLong(date) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -320,8 +331,7 @@ function renderWeeklyPage() {
   const assignments = loadWeeklyAssignments();
 
   stack.innerHTML = "";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getWeeklyAnchorDate();
 
   for (let i = 0; i < 7; i += 1) {
     const day = addDays(today, i);

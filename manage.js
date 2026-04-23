@@ -75,6 +75,15 @@ function getLocalDateKey(offsetDays = 0) {
   return `${year}-${month}-${day}`;
 }
 
+function addDaysToDateKey(dateKey, offset) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  date.setDate(date.getDate() + offset);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 saveButton.addEventListener("click", () => {
   const currentData = loadBoardData();
   const updatedLists = readListsFromForm();
@@ -126,6 +135,7 @@ runRolloverButton?.addEventListener("click", async () => {
       body: JSON.stringify({
         sourceDateKey: todayKey,
         archiveDateKey: yesterdayKey,
+        nextDisplayDateKey: addDaysToDateKey(todayKey, 1),
         clearSourceWeekly: false,
         pruneArchived: false
       })
@@ -137,7 +147,7 @@ runRolloverButton?.addEventListener("click", async () => {
 
     const result = await response.json();
     const summary = result.summary || {};
-    showStatus(`Rollover test ran. Copied ${summary.copiedEntries || 0} entries from today's weekly board into the visible Archived Yesterday slot without clearing Weekly Staffing.`);
+    showStatus(`Rollover test ran. Copied ${summary.copiedEntries || 0} entries, moved Weekly Staffing ahead one visible day, and shifted Archived Hours so the copied day shows in Yesterday.`);
   } catch (error) {
     showStatus("Could not run rollover test. Make sure you are running through Wrangler/Cloudflare.", true);
   }

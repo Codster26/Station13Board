@@ -125,7 +125,8 @@ function getDailyCrewsTodayKey() {
 }
 
 function getDailyCrewsDateKey(offsetDays = 0) {
-  const date = new Date();
+  const overrideDateKey = window.storageService?.loadValue("systemMeta", {})?.displayDateKey;
+  const date = overrideDateKey ? new Date(`${overrideDateKey}T00:00:00`) : new Date();
   date.setHours(0, 0, 0, 0);
   date.setDate(date.getDate() + offsetDays);
   const year = date.getFullYear();
