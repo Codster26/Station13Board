@@ -974,8 +974,8 @@ body::before {
 }
 
 .dc-shift-title {
-  background: linear-gradient(90deg, rgba(187, 194, 205, 0.92), rgba(132, 143, 157, 0.84));
-  color: #f7fbff;
+  background: #d2d2d2 !important;
+  color: #000000 !important;
   font-family: "Cinzel", serif;
   font-size: 0.98rem;
 }
