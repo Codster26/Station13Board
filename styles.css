@@ -93,7 +93,7 @@ body::before {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 13px 22px;
+  padding: 2px 5px;
   border: 1px solid var(--line);
   border-radius: 28px;
   background: linear-gradient(145deg, rgba(8, 16, 28, 0.86), rgba(16, 31, 52, 0.82));
@@ -118,20 +118,20 @@ body::before {
 .command-card .apparatus-header h2 {
   margin: 0;
   font-family: "Cowboy Movie", "Cinzel", serif;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
   font-weight: 400;
 }
 
 .hero h1 {
-  font-size: clamp(2rem, 3.7vw, 3.3rem);
+  font-size: clamp(3rem, 3.7vw, 3.3rem);
   line-height: 1.02;
   text-align: center;
 }
 
 .hero h1.board-title {
   font-weight: 400;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.10em;
 }
 
 .hero--with-link {
@@ -309,7 +309,7 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 11px 18px;
+  padding: 2px 5px;
   border-bottom: 1px solid var(--line);
   min-height: 64px;
 }
@@ -329,9 +329,10 @@ body::before {
 .apparatus-header h2 {
   width: 100%;
   text-align: center;
-  font-size: clamp(1.95rem, 2.9vw, 2.8rem);
+  font-size: clamp(3.95rem, 2.9vw, 2.8rem);
   line-height: 1;
   white-space: nowrap;
+  letter-spacing: 0.10em;
 }
 
 .apparatus-header .search-combobox {
@@ -347,8 +348,8 @@ body::before {
   background: transparent;
   color: #f7fbff;
   font-family: "Cowboy Movie", "Cinzel", serif;
-  font-size: clamp(1.95rem, 2.9vw, 2.8rem);
-  letter-spacing: 0.14em;
+  font-size: clamp(3.95rem, 2.9vw, 2.8rem);
+  letter-spacing: 0.10em;
   text-transform: uppercase;
   text-align: center;
   line-height: 1;
@@ -455,22 +456,22 @@ body::before {
 
 .command-card .apparatus-header {
   min-height: 56px;
-  padding: 9px 14px;
+  padding: 2px 5px;
 }
 
 .command-card .apparatus-header h2 {
-  font-size: clamp(1.5rem, 1.68vw, 1.95rem);
+  font-size: clamp(2rem, 1.72vw, 2.25rem);
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
 }
 
 .command-card--command .apparatus-header h2 {
-  font-size: clamp(1.56rem, 1.72vw, 2rem);
+  font-size: clamp(2rem, 1.72vw, 2.25rem);
 }
 
 .command-card--secondary .apparatus-header h2 {
-  font-size: clamp(1.58rem, 1.76vw, 2.04rem);
+  font-size: clamp(2rem, 1.72vw, 2.25rem);
 }
 
 .command-card--coordinator .apparatus-header {
@@ -478,7 +479,7 @@ body::before {
 }
 
 .command-card--coordinator .apparatus-header h2 {
-  font-size: clamp(1.5rem, 1.68vw, 1.92rem);
+  font-size: clamp(2rem, 1.72vw, 2.25rem);
 }
 
 .command-card--command .apparatus-header {
@@ -527,7 +528,7 @@ body::before {
 }
 
 .command-card .seat-row--single .seat-input {
-  font-size: 1.06rem;
+  font-size: 1.25rem;
   font-weight: 800;
 }
 
