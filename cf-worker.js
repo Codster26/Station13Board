@@ -376,15 +376,39 @@ async function exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDa
       browser,
       `${baseUrl}/staffing.html?export=1`,
       "#staffingTable",
-      0.76,
-      ".staffing-card { box-shadow: none !important; }"
+      0.58,
+      `
+        .staffing-card { box-shadow: none !important; }
+        .staffing-table th,
+        .staffing-table td {
+          padding: 4px 6px !important;
+          font-size: 0.72rem !important;
+        }
+        .hours-input {
+          font-size: 0.72rem !important;
+        }
+      `
     );
     weeklyPdf = await renderPdfFromPage(
       browser,
       `${baseUrl}/weekly.html?export=1`,
       "#weeklyStack .daily-calendar-card",
-      0.72,
-      ".daily-calendar-card { box-shadow: none !important; }"
+      0.5,
+      `
+        .daily-calendar-card { box-shadow: none !important; }
+        .weekly-stack { gap: 8px !important; }
+        .daily-calendar-table th,
+        .daily-calendar-table td {
+          padding: 3px 4px !important;
+          font-size: 0.72rem !important;
+        }
+        .dc-side-cell--today {
+          font-size: 0.84rem !important;
+        }
+        .dc-side-cell--date {
+          font-size: 0.64rem !important;
+        }
+      `
     );
   } finally {
     await browser.close();
