@@ -976,9 +976,15 @@ body::before {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.daily-calendar-table tr > *:nth-child(5),
-.daily-calendar-table tr > *:nth-child(9),
-.daily-calendar-table tr > *:nth-child(13) {
+.daily-calendar-table tr:not(:has(> .dc-side-cell)) > *:nth-child(5),
+.daily-calendar-table tr:not(:has(> .dc-side-cell)) > *:nth-child(9),
+.daily-calendar-table tr:not(:has(> .dc-side-cell)) > *:nth-child(13) {
+  border-left: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.daily-calendar-table tr:has(> .dc-side-cell) > *:nth-child(6),
+.daily-calendar-table tr:has(> .dc-side-cell) > *:nth-child(10),
+.daily-calendar-table tr:has(> .dc-side-cell) > *:nth-child(14) {
   border-left: 2px solid rgba(255, 255, 255, 0.3);
 }
 
