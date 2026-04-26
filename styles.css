@@ -978,10 +978,7 @@ body::before {
 
 .daily-calendar-table tr > *:nth-child(5),
 .daily-calendar-table tr > *:nth-child(9),
-.daily-calendar-table tr > *:nth-child(13),
-.daily-calendar-table tr > *:nth-child(6),
-.daily-calendar-table tr > *:nth-child(10),
-.daily-calendar-table tr > *:nth-child(14) {
+.daily-calendar-table tr > *:nth-child(13) {
   border-left: 2px solid rgba(255, 255, 255, 0.3);
 }
 
