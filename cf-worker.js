@@ -14,7 +14,7 @@ const DEFAULT_STATE = {
 };
 
 const TIME_ZONE = "America/New_York";
-const GOOGLE_DRIVE_ROOT_FOLDER_ID = "1Ho7fx4Md0N8mc6KcDCVA30R_0mh4AQlA";
+const GOOGLE_DRIVE_ROOT_FOLDER_ID = "0ADMA0rIWAkuDUk9PVA";
 const SHIFT_WINDOWS = {
   a: { start: 0, end: 6 },
   b: { start: 6, end: 12 },
@@ -337,7 +337,15 @@ async function findDriveFolder(accessToken, parentId, folderName) {
     `'${parentId}' in parents`
   ].join(" and ");
 
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&pageSize=1`, {
+  const searchParams = new URLSearchParams({
+    q: query,
+    fields: "files(id,name)",
+    pageSize: "1",
+    includeItemsFromAllDrives: "true",
+    supportsAllDrives: "true"
+  });
+
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams.toString()}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`
     }
@@ -352,7 +360,7 @@ async function findDriveFolder(accessToken, parentId, folderName) {
 }
 
 async function createDriveFolder(accessToken, parentId, folderName) {
-  const response = await fetch("https://www.googleapis.com/drive/v3/files", {
+  const response = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -412,7 +420,7 @@ async function uploadDriveFile(accessToken, folderId, filename, bytes, mimeType 
   const suffixBytes = new TextEncoder().encode(suffix);
   body.set(suffixBytes, offset);
 
-  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
