@@ -631,8 +631,40 @@ function calculateRightColumnHours(shiftId, inValue, outValue) {
   return window.end - window.start;
 }
 
+function normalizeCommandMemberName(memberName) {
+  return String(memberName || "")
+    .split(" - ")[0]
+    .trim();
+}
+
 function calculateCommandHours(shiftId, inValue, outValue) {
-  return calculateRightColumnHours(shiftId, inValue, outValue);
+  const window = SHIFT_WINDOWS[shiftId];
+  if (!window) {
+    return 0;
+  }
+
+  const inHour = parseHourValue(inValue);
+  const outHour = parseHourValue(outValue);
+
+  if (inHour !== null && outHour !== null) {
+    if (outHour >= inHour) {
+      return Math.max(0, outHour - inHour);
+    }
+
+    const firstSegment = Math.max(0, outHour - window.start);
+    const secondSegment = Math.max(0, window.end - inHour);
+    return firstSegment + secondSegment;
+  }
+
+  if (inHour !== null) {
+    return Math.max(0, window.end - inHour);
+  }
+
+  if (outHour !== null) {
+    return Math.max(0, outHour - window.start);
+  }
+
+  return window.end - window.start;
 }
 
 function calculateDailyHoursFromWeekly(weeklyAssignments, sourceDateKey) {
@@ -653,7 +685,7 @@ function calculateDailyHoursFromWeekly(weeklyAssignments, sourceDateKey) {
       addHours(result, rightMember, calculateRightColumnHours(shiftId, inValue, outValue));
     }
 
-    const commandMember = assignments[`weekly-${sourceDateKey}-command-${shiftId}-member`] || "";
+    const commandMember = normalizeCommandMemberName(assignments[`weekly-${sourceDateKey}-command-${shiftId}-member`] || "");
     const commandIn = assignments[`weekly-${sourceDateKey}-command-${shiftId}-in`] || "";
     const commandOut = assignments[`weekly-${sourceDateKey}-command-${shiftId}-out`] || "";
     addHours(result, commandMember, calculateCommandHours(shiftId, commandIn, commandOut));

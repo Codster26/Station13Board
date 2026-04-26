@@ -362,7 +362,35 @@ const DEFAULT_BOARD_DATA = {
     "Harris, M. - Fire Chief",
     "Hassel, Ed - Past Chief"
   ],
+  liveIns: [
+    "Conlin, P.",
+    "Cripps, N.",
+    "Delvalle, J.",
+    "Greipp, R.",
+    "Hill, N.",
+    "Hollis, S.",
+    "Kline, A.",
+    "MacCormac, W.",
+    "Marsico, B.",
+    "May, J.",
+    "Newton, C.",
+    "Ofori, K.",
+    "Stamp, N.",
+    "Straub, M."
+  ],
+  colorTags: {},
   colorRules: {
+    activeMembers: {},
+    engineDriver: {},
+    rescueDriver: {},
+    towerDriver: {},
+    officer: {},
+    nozzleBackupSupport: {},
+    barOvmCanRoof: {},
+    command13: {},
+    liveIns: {}
+  },
+  tagRules: {
     activeMembers: {},
     engineDriver: {},
     rescueDriver: {},
@@ -393,7 +421,7 @@ function mergeWithDefaults(stored) {
   const hasStoredActiveMembers = Array.isArray(stored?.activeMembers);
   const storedActiveMembers = hasStoredActiveMembers ? stored.activeMembers : [];
   const colorRulesVersion = Number(stored?.colorRulesVersion || 0);
-  const legacySharedColors = colorRulesVersion < DEFAULT_BOARD_DATA.colorRulesVersion;
+  const legacySharedColors = colorRulesVersion < 2;
 
   return {
     colorRulesVersion: DEFAULT_BOARD_DATA.colorRulesVersion,
@@ -407,6 +435,8 @@ function mergeWithDefaults(stored) {
       barOvmCanRoof: uniqueNames(stored?.rolePools?.barOvmCanRoof || DEFAULT_BOARD_DATA.rolePools.barOvmCanRoof)
     },
     command13Members: uniqueNames(stored?.command13Members || DEFAULT_BOARD_DATA.command13Members),
+    liveIns: uniqueNames(stored?.liveIns || DEFAULT_BOARD_DATA.liveIns),
+    colorTags: { ...(stored?.colorTags || DEFAULT_BOARD_DATA.colorTags) },
     colorRules: {
       activeMembers: legacySharedColors ? {} : { ...(stored?.colorRules?.activeMembers || {}) },
       engineDriver: { ...(stored?.colorRules?.engineDriver || {}) },
@@ -415,7 +445,18 @@ function mergeWithDefaults(stored) {
       officer: { ...(stored?.colorRules?.officer || {}) },
       nozzleBackupSupport: { ...(stored?.colorRules?.nozzleBackupSupport || {}) },
       barOvmCanRoof: { ...(stored?.colorRules?.barOvmCanRoof || {}) },
-      command13: { ...(stored?.colorRules?.command13 || {}) }
+      command13: { ...(stored?.colorRules?.command13 || {}) },
+      liveIns: { ...(stored?.colorRules?.liveIns || {}) }
+    },
+    tagRules: {
+      activeMembers: { ...(stored?.tagRules?.activeMembers || {}) },
+      engineDriver: { ...(stored?.tagRules?.engineDriver || {}) },
+      rescueDriver: { ...(stored?.tagRules?.rescueDriver || {}) },
+      towerDriver: { ...(stored?.tagRules?.towerDriver || {}) },
+      officer: { ...(stored?.tagRules?.officer || {}) },
+      nozzleBackupSupport: { ...(stored?.tagRules?.nozzleBackupSupport || {}) },
+      barOvmCanRoof: { ...(stored?.tagRules?.barOvmCanRoof || {}) },
+      command13: { ...(stored?.tagRules?.command13 || {}) }
     },
     assignments: { ...(stored?.assignments || {}) }
   };
@@ -454,40 +495,84 @@ function parseNameList(text) {
   );
 }
 
-function parseNameColorList(text) {
+function parseNameColorList(text, colorTags = {}) {
   const names = [];
   const colors = {};
+  const tags = {};
 
   String(text || "")
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
     .forEach((line) => {
-      const match = line.match(/^(.*?)(?:\s*-\s*(#[0-9a-fA-F]{6}))?$/);
-      if (!match) {
-        return;
+      const parts = line.split(" - ");
+      let name = line;
+      let suffix = "";
+
+      if (parts.length > 1) {
+        const possibleSuffix = parts[parts.length - 1].trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(possibleSuffix) || colorTags[possibleSuffix]) {
+          suffix = possibleSuffix;
+          name = parts.slice(0, -1).join(" - ").trim();
+        }
       }
-      const name = (match[1] || "").trim();
-      const color = (match[2] || "").trim();
+
       if (!name) {
         return;
       }
       names.push(name);
-      if (color) {
-        colors[name] = color;
+      if (/^#[0-9a-fA-F]{6}$/.test(suffix)) {
+        colors[name] = suffix;
+      } else if (suffix && colorTags[suffix]) {
+        colors[name] = colorTags[suffix];
+        tags[name] = suffix;
       }
     });
 
   return {
     names: uniqueNames(names),
-    colors
+    colors,
+    tags
   };
 }
 
-function formatNameColorList(names, colorMap) {
+function parseColorTagList(text) {
+  const colorTags = {};
+
+  String(text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      const match = line.match(/^(#[0-9a-fA-F]{6})\s*-\s*(.+)$/);
+      if (!match) {
+        return;
+      }
+      const color = match[1].trim();
+      const label = match[2].trim();
+      if (!label) {
+        return;
+      }
+      colorTags[label] = color;
+    });
+
+  return colorTags;
+}
+
+function formatColorTagList(colorTags) {
+  return Object.entries(colorTags || {})
+    .map(([label, color]) => `${color} - ${label}`)
+    .join("\n");
+}
+
+function formatNameColorList(names, colorMap, tagMap = {}) {
   return (names || [])
     .map((name) => {
+      const tag = tagMap?.[name];
       const color = colorMap?.[name];
+      if (tag) {
+        return `${name} - ${tag}`;
+      }
       return color ? `${name} - ${color}` : name;
     })
     .join("\n");

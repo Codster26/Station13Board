@@ -1,5 +1,6 @@
 const STAFFING_STORAGE_KEY = "station13-staffing-hours";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const LIVE_IN_COLOR = "#FAB6A5";
 const exportWeeklyRecordsButton = document.getElementById("exportWeeklyRecordsButton");
 const staffingExportStatus = document.getElementById("staffingExportStatus");
 
@@ -115,6 +116,7 @@ function renderStaffingTable() {
   const boardData = loadBoardData();
   const activeMembers = boardData.activeMembers || [];
   const activeMemberColors = boardData.colorRules?.activeMembers || {};
+  const liveIns = new Set(boardData.liveIns || []);
   const hoursData = loadHoursData();
   const head = document.getElementById("staffingHead");
   const body = document.getElementById("staffingBody");
@@ -157,7 +159,7 @@ function renderStaffingTable() {
 
   activeMembers.forEach((member) => {
     const row = document.createElement("tr");
-    const fillColor = activeMemberColors[member] || "";
+    const fillColor = liveIns.has(member) ? LIVE_IN_COLOR : (activeMemberColors[member] || "");
     const textColor = fillColor ? getReadableTextColor(fillColor) : "";
 
     const memberCell = document.createElement("td");
