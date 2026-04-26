@@ -173,7 +173,7 @@ async function renderPdfFromPage(browser, targetUrl, selector, zoom, extraCss = 
     });
 
     const widthInches = Math.max(8.5, dimensions.width / 96);
-    const heightInches = Math.max(11, dimensions.height / 96);
+    const heightInches = Math.max(1, dimensions.height / 96);
 
     return await page.pdf({
       printBackground: true,
