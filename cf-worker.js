@@ -14,7 +14,7 @@ const DEFAULT_STATE = {
 };
 
 const TIME_ZONE = "America/New_York";
-const GOOGLE_DRIVE_ROOT_FOLDER_ID = "10Rvt65OFBMzWIa7F2oEJZjj9tMKmPGEi";
+const GOOGLE_DRIVE_ROOT_FOLDER_ID = "1Ho7fx4Md0N8mc6KcDCVA30R_0mh4AQlA";
 const SHIFT_WINDOWS = {
   a: { start: 0, end: 6 },
   b: { start: 6, end: 12 },
@@ -366,7 +366,8 @@ async function createDriveFolder(accessToken, parentId, folderName) {
   });
 
   if (!response.ok) {
-    throw new Error(`Could not create Google Drive folder "${folderName}".`);
+    const details = await response.text();
+    throw new Error(`Could not create Google Drive folder "${folderName}". ${details}`);
   }
 
   return response.json();
@@ -421,7 +422,8 @@ async function uploadDriveFile(accessToken, folderId, filename, bytes, mimeType 
   });
 
   if (!response.ok) {
-    throw new Error(`Could not upload "${filename}" to Google Drive.`);
+    const details = await response.text();
+    throw new Error(`Could not upload "${filename}" to Google Drive. ${details}`);
   }
 
   return response.json();
