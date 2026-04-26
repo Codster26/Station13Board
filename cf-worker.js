@@ -104,11 +104,34 @@ function getPublicBaseUrl(request, env) {
   throw new Error("PUBLIC_SITE_URL is not configured for scheduled PDF exports.");
 }
 
-async function renderLivePagePdf(env, targetUrl, selector, zoom, extraCss = "") {
-  const browser = await puppeteer.launch(env.BROWSER);
+async function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function launchBrowserWithRetry(env, attempts = 3) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await puppeteer.launch(env.BROWSER);
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || error || "");
+      const isRateLimit = message.includes("429") || message.toLowerCase().includes("rate limit");
+      if (!isRateLimit || attempt === attempts) {
+        throw error;
+      }
+      await delay(1500 * attempt);
+    }
+  }
+
+  throw lastError;
+}
+
+async function renderPdfFromPage(browser, targetUrl, selector, zoom, extraCss = "") {
+  const page = await browser.newPage();
 
   try {
-    const page = await browser.newPage();
     await page.goto(targetUrl, { waitUntil: "networkidle0" });
     await page.waitForSelector(selector, { timeout: 30000 });
     await page.addStyleTag({
@@ -156,7 +179,7 @@ async function renderLivePagePdf(env, targetUrl, selector, zoom, extraCss = "") 
       }
     });
   } finally {
-    await browser.close();
+    await page.close();
   }
 }
 
@@ -344,20 +367,28 @@ async function exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDa
   const yearFolderId = await ensureDriveFolder(accessToken, GOOGLE_DRIVE_ROOT_FOLDER_ID, referenceDateKey.slice(0, 4));
   const monthFolderId = await ensureDriveFolder(accessToken, yearFolderId, getMonthFolderLabel(referenceDateKey));
   const baseUrl = getPublicBaseUrl(request, env);
-  const staffingPdf = await renderLivePagePdf(
-    env,
-    `${baseUrl}/staffing.html?export=1`,
-    "#staffingTable",
-    0.76,
-    ".staffing-card { box-shadow: none !important; }"
-  );
-  const weeklyPdf = await renderLivePagePdf(
-    env,
-    `${baseUrl}/weekly.html?export=1`,
-    "#weeklyStack .daily-calendar-card",
-    0.72,
-    ".daily-calendar-card { box-shadow: none !important; }"
-  );
+  const browser = await launchBrowserWithRetry(env);
+  let staffingPdf;
+  let weeklyPdf;
+
+  try {
+    staffingPdf = await renderPdfFromPage(
+      browser,
+      `${baseUrl}/staffing.html?export=1`,
+      "#staffingTable",
+      0.76,
+      ".staffing-card { box-shadow: none !important; }"
+    );
+    weeklyPdf = await renderPdfFromPage(
+      browser,
+      `${baseUrl}/weekly.html?export=1`,
+      "#weeklyStack .daily-calendar-card",
+      0.72,
+      ".daily-calendar-card { box-shadow: none !important; }"
+    );
+  } finally {
+    await browser.close();
+  }
 
   const staffingFilename = buildExportFilename(referenceDateKey, "Staffing Hours");
   const weeklyFilename = buildExportFilename(referenceDateKey, "Weekly Staffing");

@@ -120,8 +120,8 @@ function renderStaffingTable() {
   const body = document.getElementById("staffingBody");
   const displayDates = getDisplayDates();
   const yesterday = displayDates[0];
-  const currentSunday = getSunday(new Date());
-  const weekNumber = getISOWeekNumber(currentSunday);
+  const currentSunday = getSunday(yesterday);
+  const weekNumber = getISOWeekNumber(yesterday);
 
   head.innerHTML = "";
   body.innerHTML = "";
