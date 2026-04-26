@@ -379,7 +379,7 @@ body::before {
 
 .seat-role {
   font-family: "Arial Black", Arial, sans-serif;
-  font-size: 1.05rem;
+  font-size: 1.5rem;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -417,7 +417,7 @@ body::before {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: #dfe7f3;
-  font-size: 1.12rem;
+  font-size: 1.5rem;
   font-weight: 800;
   padding: 9px 16px;
   font-family: "Arial Black", Arial, sans-serif;
@@ -970,10 +970,10 @@ body::before {
 .daily-calendar-table th,
 .daily-calendar-table td {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 5px 7px;
+  padding: 2px 5px;
   text-align: center;
   white-space: nowrap;
-  font-size: 0.86rem;
+  font-size: 1rem;
   background: rgba(255, 255, 255, 0.03);
 }
 
@@ -990,6 +990,10 @@ body::before {
 }
 
 .daily-calendar-table .dc-shift-title + .dc-shift-title {
+  border-left: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.daily-calendar-table .dc-crew-title + .dc-crew-title {
   border-left: 2px solid rgba(255, 255, 255, 0.3);
 }
 
@@ -1057,7 +1061,7 @@ body::before {
 
 .dc-side-cell--date {
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: 1rem;
   line-height: 1.2;
   white-space: normal !important;
 }
@@ -1070,7 +1074,7 @@ body::before {
   align-items: center;
   justify-content: center;
   gap: 9px;
-  padding: 14px 7px;
+  padding: 2px 5px;
   text-align: center;
 }
 
@@ -1078,16 +1082,15 @@ body::before {
   width: 100%;
   min-width: 100%;
   display: block;
-  box-sizing: border-box;
   border: 0;
   border-radius: 0;
   outline: none;
   background: transparent;
-  font-size: 0.9rem;
+  font-size: 1rem;
   text-align: center;
   font-family: "Arial Black", Arial, sans-serif;
   color: #e8f0ff;
-  padding: 2px 8px;
+  padding: 2px 5px;
   line-height: 1.2;
   appearance: none;
   background-image: none;
