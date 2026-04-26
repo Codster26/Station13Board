@@ -54,10 +54,10 @@ const dailyCrewApparatus = [
     positions: [
       { id: "driver", label: "Driver", pool: "towerDriver" },
       { id: "officer", label: "Officer", pool: "officer" },
-      { id: "bar", label: "Bar", pool: "barOvmCanRoof" },
-      { id: "ovm", label: "OVM", pool: "barOvmCanRoof" },
-      { id: "can", label: "Can", pool: "barOvmCanRoof" },
-      { id: "roof", label: "Roof", pool: "barOvmCanRoof" }
+      { id: "bar", label: "Bar", pool: "barCan" },
+      { id: "ovm", label: "OVM", pool: "ovm" },
+      { id: "can", label: "Can", pool: "barCan" },
+      { id: "roof", label: "Roof", pool: "roof" }
     ]
   },
   {
@@ -67,10 +67,10 @@ const dailyCrewApparatus = [
     positions: [
       { id: "driver", label: "Driver", pool: "rescueDriver" },
       { id: "officer", label: "Officer", pool: "officer" },
-      { id: "bar", label: "Bar", pool: "barOvmCanRoof" },
-      { id: "ovm", label: "OVM", pool: "barOvmCanRoof" },
-      { id: "can", label: "Can", pool: "barOvmCanRoof" },
-      { id: "roof", label: "Roof", pool: "barOvmCanRoof" }
+      { id: "bar", label: "Bar", pool: "barCan" },
+      { id: "ovm", label: "OVM", pool: "ovm" },
+      { id: "can", label: "Can", pool: "barCan" },
+      { id: "roof", label: "Roof", pool: "roof" }
     ]
   }
 ];

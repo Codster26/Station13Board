@@ -8,14 +8,14 @@ const seatPoolMap = {
   "engine-nozzle": "nozzleBackupSupport",
   "engine-backup": "nozzleBackupSupport",
   "engine-support": "nozzleBackupSupport",
-  "tower-bar": "barOvmCanRoof",
-  "tower-ovm": "barOvmCanRoof",
-  "tower-can": "barOvmCanRoof",
-  "tower-roof": "barOvmCanRoof",
-  "rescue-bar": "barOvmCanRoof",
-  "rescue-ovm": "barOvmCanRoof",
-  "rescue-can": "barOvmCanRoof",
-  "rescue-roof": "barOvmCanRoof",
+  "tower-bar": "barCan",
+  "tower-ovm": "ovm",
+  "tower-can": "barCan",
+  "tower-roof": "roof",
+  "rescue-bar": "barCan",
+  "rescue-ovm": "ovm",
+  "rescue-can": "barCan",
+  "rescue-roof": "roof",
   "command-vehicle": "command13",
   "command-2": "command13"
 };
@@ -63,10 +63,10 @@ const APPARATUS_TYPES = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "towerDriver", fallback: "MacCormac, W." },
       { id: "officer", label: "Officer", poolKey: "officer", fallback: "Tanler, K." },
-      { id: "bar", label: "Bar", poolKey: "barOvmCanRoof", fallback: "Delvalle, J." },
-      { id: "ovm", label: "OVM", poolKey: "barOvmCanRoof", fallback: "Newton, C." },
-      { id: "can", label: "Can", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT },
-      { id: "roof", label: "Roof", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT }
+      { id: "bar", label: "Bar", poolKey: "barCan", fallback: "Delvalle, J." },
+      { id: "ovm", label: "OVM", poolKey: "ovm", fallback: "Newton, C." },
+      { id: "can", label: "Can", poolKey: "barCan", fallback: OPEN_ASSIGNMENT },
+      { id: "roof", label: "Roof", poolKey: "roof", fallback: OPEN_ASSIGNMENT }
     ]
   },
   rescue13: {
@@ -76,10 +76,10 @@ const APPARATUS_TYPES = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "rescueDriver", fallback: OPEN_ASSIGNMENT },
       { id: "officer", label: "Officer", poolKey: "officer", fallback: OPEN_ASSIGNMENT },
-      { id: "bar", label: "Bar", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT },
-      { id: "ovm", label: "OVM", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT },
-      { id: "can", label: "Can", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT },
-      { id: "roof", label: "Roof", poolKey: "barOvmCanRoof", fallback: OPEN_ASSIGNMENT }
+      { id: "bar", label: "Bar", poolKey: "barCan", fallback: OPEN_ASSIGNMENT },
+      { id: "ovm", label: "OVM", poolKey: "ovm", fallback: OPEN_ASSIGNMENT },
+      { id: "can", label: "Can", poolKey: "barCan", fallback: OPEN_ASSIGNMENT },
+      { id: "roof", label: "Roof", poolKey: "roof", fallback: OPEN_ASSIGNMENT }
     ]
   }
 };
@@ -209,25 +209,7 @@ function getColorRuleMap(boardData, poolKey) {
   if (poolKey === "command13") {
     return boardData?.colorRules?.command13 || {};
   }
-  if (poolKey === "engineDriver") {
-    return boardData?.colorRules?.engineDriver || {};
-  }
-  if (poolKey === "rescueDriver") {
-    return boardData?.colorRules?.rescueDriver || {};
-  }
-  if (poolKey === "towerDriver") {
-    return boardData?.colorRules?.towerDriver || {};
-  }
-  if (poolKey === "officer") {
-    return boardData?.colorRules?.officer || {};
-  }
-  if (poolKey === "nozzleBackupSupport") {
-    return boardData?.colorRules?.nozzleBackupSupport || {};
-  }
-  if (poolKey === "barOvmCanRoof") {
-    return boardData?.colorRules?.barOvmCanRoof || {};
-  }
-  return boardData?.colorRules?.activeMembers || {};
+  return boardData?.colorRules?.[poolKey] || boardData?.colorRules?.activeMembers || {};
 }
 
 function applyMemberFillColor(select, colorMap) {
