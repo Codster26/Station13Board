@@ -220,7 +220,16 @@ function calculateRightColumnHours(shiftId, inValue, outValue) {
   const outHour = parseHourValue(outValue);
 
   if (inHour !== null && outHour !== null) {
-    return Math.max(0, Math.min(window.end, outHour) - Math.max(window.start, inHour));
+    const clampedIn = Math.max(window.start, Math.min(window.end, inHour));
+    const clampedOut = Math.max(window.start, Math.min(window.end, outHour));
+
+    if (clampedOut >= clampedIn) {
+      return Math.max(0, clampedOut - clampedIn);
+    }
+
+    const firstSegment = Math.max(0, clampedOut - window.start);
+    const secondSegment = Math.max(0, window.end - clampedIn);
+    return firstSegment + secondSegment;
   }
 
   if (inHour !== null) {
