@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import puppeteer from "@cloudflare/puppeteer";
 
 const DEFAULT_STATE = {
   boardData: null,
@@ -77,95 +78,6 @@ function getMonthFolderLabel(dateKey) {
   return `${monthNumber} - ${monthName}`;
 }
 
-function escapePdfText(value) {
-  return String(value ?? "")
-    .replace(/\\/g, "\\\\")
-    .replace(/\(/g, "\\(")
-    .replace(/\)/g, "\\)");
-}
-
-function padCell(value, width) {
-  return String(value ?? "").padEnd(width, " ");
-}
-
-function buildPdfBytes(title, lines) {
-  const encoder = new TextEncoder();
-  const lineHeight = 14;
-  const pageHeight = 792;
-  const topY = 760;
-  const leftX = 40;
-  const linesPerPage = 48;
-  const pages = [];
-
-  for (let index = 0; index < lines.length; index += linesPerPage) {
-    pages.push(lines.slice(index, index + linesPerPage));
-  }
-
-  if (pages.length === 0) {
-    pages.push(["No data available"]);
-  }
-
-  const objects = [];
-  objects.push("<< /Type /Catalog /Pages 2 0 R >>");
-
-  const pageObjectIds = [];
-  const contentObjectIds = [];
-  const fontObjectId = 3 + pages.length * 2;
-
-  pages.forEach((pageLines, pageIndex) => {
-    const pageObjectId = 3 + pageIndex * 2;
-    const contentObjectId = 4 + pageIndex * 2;
-    pageObjectIds.push(pageObjectId);
-    contentObjectIds.push(contentObjectId);
-
-    const textLines = [
-      "BT",
-      "/F1 16 Tf",
-      `${leftX} ${topY} Td`,
-      `(${escapePdfText(title)}) Tj`
-    ];
-
-    let currentY = topY - 24;
-    pageLines.forEach((line, lineIndex) => {
-      const fontSize = lineIndex === 0 && pageIndex === 0 ? 10 : 9;
-      textLines.push("ET");
-      textLines.push("BT");
-      textLines.push(`/F1 ${fontSize} Tf`);
-      textLines.push(`${leftX} ${currentY} Td`);
-      textLines.push(`(${escapePdfText(line)}) Tj`);
-      currentY -= lineHeight;
-    });
-    textLines.push("ET");
-
-    const contentStream = textLines.join("\n");
-    const contentBytes = encoder.encode(contentStream);
-
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${pageHeight}] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`);
-    objects.push(`<< /Length ${contentBytes.length} >>\nstream\n${contentStream}\nendstream`);
-  });
-
-  objects.splice(1, 0, `<< /Type /Pages /Count ${pages.length} /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(" ")}] >>`);
-  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>");
-
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-
-  objects.forEach((object, index) => {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-
-  const xrefStart = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += "0000000000 65535 f \n";
-  for (let index = 1; index <= objects.length; index += 1) {
-    pdf += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
-  }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-
-  return encoder.encode(pdf);
-}
-
 function getWeekNumberForDateKey(dateKey) {
   const date = new Date(`${dateKey}T00:00:00`);
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -175,87 +87,77 @@ function getWeekNumberForDateKey(dateKey) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-function buildStaffingHoursPdf(state, referenceDateKey) {
-  const boardData = state.boardData || {};
-  const activeMembers = boardData.activeMembers || [];
-  const staffingHours = state.staffingHours || {};
-  const displayDateKeys = getVisibleStaffingDateKeys(referenceDateKey);
-  const yesterdayKey = displayDateKeys[0];
-  const weekNumber = getWeekNumberForDateKey(referenceDateKey);
-  const title = `${referenceDateKey} Week ${weekNumber} Staffing Hours`;
-  const header = [
-    padCell("Member", 24),
-    ...displayDateKeys.map((dateKey, index) => padCell(index === 0 ? "Yesterday" : dateKey.slice(5), 12)),
-    padCell("Total", 8)
-  ].join(" ");
-
-  const lines = [header, "-".repeat(header.length)];
-  activeMembers.forEach((memberName) => {
-    const memberHours = staffingHours[memberName] || {};
-    const total = Object.values(memberHours).reduce((sum, value) => sum + (Number(value) || 0), 0);
-    const row = [
-      padCell(memberName, 24),
-      ...displayDateKeys.map((dateKey) => padCell(memberHours[dateKey] ? String(memberHours[dateKey]) : "", 12)),
-      padCell(String(total || ""), 8)
-    ].join(" ");
-    lines.push(row);
-  });
-
-  if (lines.length <= 2) {
-    lines.push(`No staffing hour rows found for visible window ending ${yesterdayKey}.`);
-  }
-
-  return {
-    filename: `${referenceDateKey} Week ${weekNumber} Staffing Hours.pdf`,
-    bytes: buildPdfBytes(title, lines)
-  };
+function buildExportFilename(referenceDateKey, suffix) {
+  return `${referenceDateKey} Week ${getWeekNumberForDateKey(referenceDateKey)} ${suffix}.pdf`;
 }
 
-function buildWeeklyStaffingPdf(state, referenceDateKey) {
-  const weeklyAssignments = state.weeklyAssignments || {};
-  const boardData = state.boardData || {};
-  const command13Members = new Set(boardData.command13Members || []);
-  const visibleWeekDateKeys = Array.from({ length: 7 }, (_, index) => addDaysToDateKey(referenceDateKey, index));
-  const weekNumber = getWeekNumberForDateKey(referenceDateKey);
-  const title = `${referenceDateKey} Week ${weekNumber} Weekly Staffing`;
-  const lines = [];
+function getPublicBaseUrl(request, env) {
+  if (request) {
+    const url = new URL(request.url);
+    return `${url.protocol}//${url.host}`;
+  }
 
-  visibleWeekDateKeys.forEach((dateKey, dayIndex) => {
-    lines.push(`${dayIndex === 0 ? "Today" : `+${dayIndex} Day`} - ${dateKey}`);
-    Object.keys(SHIFT_WINDOWS).forEach((shiftId) => {
-      const crewKey = `weekly-${dateKey}-crew-${shiftId}`;
-      const crewStatus = weeklyAssignments[crewKey] || "";
-      lines.push(`  ${shiftId.toUpperCase()} Shift (${SHIFT_WINDOWS[shiftId].start.toString().padStart(2, "0")}00-${SHIFT_WINDOWS[shiftId].end.toString().padStart(2, "0")}00) ${crewStatus ? `- ${crewStatus}` : ""}`.trim());
+  if (env.PUBLIC_SITE_URL) {
+    return env.PUBLIC_SITE_URL.replace(/\/+$/, "");
+  }
 
-      for (let row = 0; row < 15; row += 1) {
-        const prefix = `weekly-${dateKey}-${shiftId}-${row}`;
-        const member1 = weeklyAssignments[`${prefix}-member1`] || "";
-        const inTime = weeklyAssignments[`${prefix}-in`] || "";
-        const member2 = weeklyAssignments[`${prefix}-member2`] || "";
-        const outTime = weeklyAssignments[`${prefix}-out`] || "";
+  throw new Error("PUBLIC_SITE_URL is not configured for scheduled PDF exports.");
+}
 
-        if (!member1 && !member2 && !inTime && !outTime) {
-          continue;
+async function renderLivePagePdf(env, targetUrl, selector, zoom, extraCss = "") {
+  const browser = await puppeteer.launch(env.BROWSER);
+
+  try {
+    const page = await browser.newPage();
+    await page.goto(targetUrl, { waitUntil: "networkidle0" });
+    await page.waitForSelector(selector, { timeout: 30000 });
+    await page.addStyleTag({
+      content: `
+        body::before,
+        .nav-menu,
+        .menu-toggle,
+        .manage-actions {
+          display: none !important;
         }
+        .page-shell {
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .hero {
+          margin-bottom: 14px !important;
+        }
+        body {
+          zoom: ${zoom};
+        }
+        ${extraCss}
+      `
+    });
+    await page.emulateMediaType("screen");
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
-        lines.push(`    ${padCell(member1, 22)} ${padCell(inTime, 4)} ${padCell(member2, 22)} ${padCell(outTime, 4)}`);
-      }
+    const dimensions = await page.evaluate(() => ({
+      width: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      height: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)
+    }));
 
-      const commandMember = weeklyAssignments[`weekly-${dateKey}-command-${shiftId}-member`] || "";
-      const commandIn = weeklyAssignments[`weekly-${dateKey}-command-${shiftId}-in`] || "";
-      const commandOut = weeklyAssignments[`weekly-${dateKey}-command-${shiftId}-out`] || "";
-      if (commandMember || commandIn || commandOut) {
-        const label = command13Members.has(commandMember) ? "Command 13" : "Command 13";
-        lines.push(`    ${padCell(label, 22)} ${padCell(commandIn, 4)} ${padCell(commandMember, 22)} ${padCell(commandOut, 4)}`);
+    const widthInches = Math.max(8.5, dimensions.width / 96);
+    const heightInches = Math.max(11, dimensions.height / 96);
+
+    return await page.pdf({
+      printBackground: true,
+      width: `${widthInches}in`,
+      height: `${heightInches}in`,
+      margin: {
+        top: "0in",
+        right: "0in",
+        bottom: "0in",
+        left: "0in"
       }
     });
-    lines.push("");
-  });
-
-  return {
-    filename: `${referenceDateKey} Week ${weekNumber} Weekly Staffing.pdf`,
-    bytes: buildPdfBytes(title, lines)
-  };
+  } finally {
+    await browser.close();
+  }
 }
 
 function pemToArrayBuffer(pem) {
@@ -437,21 +339,37 @@ async function uploadDriveFile(accessToken, folderId, filename, bytes, mimeType 
   return response.json();
 }
 
-async function exportWeeklyRecordsToGoogleDrive(env, state, referenceDateKey) {
+async function exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDateKey) {
   const accessToken = await getGoogleAccessToken(env);
   const yearFolderId = await ensureDriveFolder(accessToken, GOOGLE_DRIVE_ROOT_FOLDER_ID, referenceDateKey.slice(0, 4));
   const monthFolderId = await ensureDriveFolder(accessToken, yearFolderId, getMonthFolderLabel(referenceDateKey));
-  const staffingPdf = buildStaffingHoursPdf(state, referenceDateKey);
-  const weeklyPdf = buildWeeklyStaffingPdf(state, referenceDateKey);
+  const baseUrl = getPublicBaseUrl(request, env);
+  const staffingPdf = await renderLivePagePdf(
+    env,
+    `${baseUrl}/staffing.html?export=1`,
+    "#staffingTable",
+    0.76,
+    ".staffing-card { box-shadow: none !important; }"
+  );
+  const weeklyPdf = await renderLivePagePdf(
+    env,
+    `${baseUrl}/weekly.html?export=1`,
+    "#weeklyStack .daily-calendar-card",
+    0.72,
+    ".daily-calendar-card { box-shadow: none !important; }"
+  );
 
-  const staffingUpload = await uploadDriveFile(accessToken, monthFolderId, staffingPdf.filename, staffingPdf.bytes);
-  const weeklyUpload = await uploadDriveFile(accessToken, monthFolderId, weeklyPdf.filename, weeklyPdf.bytes);
+  const staffingFilename = buildExportFilename(referenceDateKey, "Staffing Hours");
+  const weeklyFilename = buildExportFilename(referenceDateKey, "Weekly Staffing");
+
+  const staffingUpload = await uploadDriveFile(accessToken, monthFolderId, staffingFilename, new Uint8Array(staffingPdf));
+  const weeklyUpload = await uploadDriveFile(accessToken, monthFolderId, weeklyFilename, new Uint8Array(weeklyPdf));
 
   return {
     folderId: monthFolderId,
     files: [
-      { name: staffingPdf.filename, id: staffingUpload.id },
-      { name: weeklyPdf.filename, id: weeklyUpload.id }
+      { name: staffingFilename, id: staffingUpload.id },
+      { name: weeklyFilename, id: weeklyUpload.id }
     ]
   };
 }
@@ -875,7 +793,7 @@ export default {
       const state = await fetchCurrentState(env);
       const referenceDateKey = body.referenceDateKey || state?.systemMeta?.displayDateKey || currentDateKey;
       try {
-        const result = await exportWeeklyRecordsToGoogleDrive(env, state, referenceDateKey);
+        const result = await exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDateKey);
 
         const nextState = clone({
           ...DEFAULT_STATE,
@@ -938,7 +856,7 @@ export default {
 
       if (new Date(`${currentDateKey}T00:00:00`).getDay() === 0 && finalState.systemMeta?.lastWeeklyExportDate !== currentDateKey) {
         try {
-          await exportWeeklyRecordsToGoogleDrive(env, finalState, currentDateKey);
+          await exportWeeklyRecordsToGoogleDrive(null, env, finalState, currentDateKey);
           finalState = clone({
             ...finalState,
             systemMeta: {
