@@ -60,6 +60,10 @@ function getVisibleArchivedDateKeys(referenceDateKey) {
   return Array.from({ length: 7 }, (_, index) => addDaysToDateKey(referenceDateKey, -(index + 1)));
 }
 
+function getVisibleStaffingDateKeys(referenceDateKey) {
+  return Array.from({ length: 7 }, (_, index) => addDaysToDateKey(referenceDateKey, -(index + 1)));
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -310,6 +314,41 @@ function applyCalculatedHoursToStaffing(state, sourceDateKey, targetDateKey) {
   };
 }
 
+function shiftStaffingWindowForYesterday(nextState, currentDateKey, targetDateKey) {
+  const visibleStaffingKeys = getVisibleStaffingDateKeys(currentDateKey);
+  if (targetDateKey !== visibleStaffingKeys[0]) {
+    return nextState;
+  }
+
+  const staffingHours = clone(nextState.staffingHours || {});
+
+  Object.keys(staffingHours).forEach((memberName) => {
+    const memberHours = { ...(staffingHours[memberName] || {}) };
+
+    for (let index = visibleStaffingKeys.length - 1; index > 0; index -= 1) {
+      const destinationKey = visibleStaffingKeys[index];
+      const sourceKey = visibleStaffingKeys[index - 1];
+
+      if (Object.prototype.hasOwnProperty.call(memberHours, sourceKey)) {
+        memberHours[destinationKey] = memberHours[sourceKey];
+      } else {
+        delete memberHours[destinationKey];
+      }
+    }
+
+    delete memberHours[targetDateKey];
+
+    if (Object.keys(memberHours).length === 0) {
+      delete staffingHours[memberName];
+    } else {
+      staffingHours[memberName] = memberHours;
+    }
+  });
+
+  nextState.staffingHours = staffingHours;
+  return nextState;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -410,13 +449,27 @@ export default {
       const sourceDateKey = body.sourceDateKey || currentDateKey;
       const targetDateKey = body.targetDateKey || sourceDateKey;
       const state = await fetchCurrentState(env);
-      const result = applyCalculatedHoursToStaffing(state, sourceDateKey, targetDateKey);
+      let nextState = clone({
+        ...DEFAULT_STATE,
+        ...(state || {}),
+        systemMeta: {
+          ...DEFAULT_STATE.systemMeta,
+          ...(state?.systemMeta || {})
+        }
+      });
+
+      if (body.shiftYesterdayColumn === true) {
+        nextState = shiftStaffingWindowForYesterday(nextState, currentDateKey, targetDateKey);
+      }
+
+      const result = applyCalculatedHoursToStaffing(nextState, sourceDateKey, targetDateKey);
       await persistFullState(env, result.state);
 
       return Response.json({
         ok: true,
         sourceDateKey,
         targetDateKey,
+        shiftedYesterdayColumn: body.shiftYesterdayColumn === true,
         calculatedHours: result.calculatedHours
       });
     }

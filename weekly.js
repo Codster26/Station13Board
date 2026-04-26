@@ -373,7 +373,8 @@ async function initWeeklyPage() {
           },
           body: JSON.stringify({
             sourceDateKey,
-            targetDateKey
+            targetDateKey,
+            shiftYesterdayColumn: true
           })
         });
 
@@ -383,7 +384,7 @@ async function initWeeklyPage() {
 
         const result = await response.json();
         const memberCount = Object.keys(result.calculatedHours || {}).length;
-        showWeeklyStatus(`Calculated hours for ${memberCount} member${memberCount === 1 ? "" : "s"} into Staffing Hours yesterday column.`);
+        showWeeklyStatus(`Shifted Staffing Hours yesterday column and calculated hours for ${memberCount} member${memberCount === 1 ? "" : "s"}.`);
       } catch (error) {
         showWeeklyStatus(error.message || "Could not calculate hours.", true);
       } finally {
