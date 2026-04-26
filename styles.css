@@ -976,6 +976,19 @@ body::before {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.daily-calendar-table tr > *:nth-child(5),
+.daily-calendar-table tr > *:nth-child(9),
+.daily-calendar-table tr > *:nth-child(13),
+.daily-calendar-table tr > *:nth-child(6),
+.daily-calendar-table tr > *:nth-child(10),
+.daily-calendar-table tr > *:nth-child(14) {
+  border-left: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.daily-calendar-table .dc-shift-title + .dc-shift-title {
+  border-left: 2px solid rgba(255, 255, 255, 0.3);
+}
+
 .dc-col-side {
   width: 130px;
 }
