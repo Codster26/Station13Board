@@ -87,8 +87,13 @@ function getWeekNumberForDateKey(dateKey) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
+function formatExportDateLabel(dateKey) {
+  const [year, month, day] = dateKey.split("-");
+  return `${month}/${day}/${year.slice(2)}`;
+}
+
 function buildExportFilename(referenceDateKey, suffix) {
-  return `${referenceDateKey} Week ${getWeekNumberForDateKey(referenceDateKey)} ${suffix}.pdf`;
+  return `${formatExportDateLabel(referenceDateKey)} Week ${getWeekNumberForDateKey(referenceDateKey)} ${suffix}.pdf`;
 }
 
 function getPublicBaseUrl(request, env) {
@@ -159,10 +164,13 @@ async function renderPdfFromPage(browser, targetUrl, selector, zoom, extraCss = 
     await page.emulateMediaType("screen");
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
-    const dimensions = await page.evaluate(() => ({
-      width: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
-      height: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)
-    }));
+    const dimensions = await page.$eval(selector, (element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        width: Math.ceil(rect.width),
+        height: Math.ceil(rect.height)
+      };
+    });
 
     const widthInches = Math.max(8.5, dimensions.width / 96);
     const heightInches = Math.max(11, dimensions.height / 96);
@@ -391,8 +399,8 @@ async function exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDa
     );
     weeklyPdf = await renderPdfFromPage(
       browser,
-      `${baseUrl}/weekly.html?export=1`,
-      "#weeklyStack .daily-calendar-card",
+      `${baseUrl}/archived.html?export=1`,
+      "#archivedStack .daily-calendar-card",
       0.5,
       `
         .daily-calendar-card { box-shadow: none !important; }
@@ -415,7 +423,7 @@ async function exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDa
   }
 
   const staffingFilename = buildExportFilename(referenceDateKey, "Staffing Hours");
-  const weeklyFilename = buildExportFilename(referenceDateKey, "Weekly Staffing");
+  const weeklyFilename = buildExportFilename(referenceDateKey, "Archived Hours");
 
   const staffingUpload = await uploadDriveFile(accessToken, monthFolderId, staffingFilename, new Uint8Array(staffingPdf));
   const weeklyUpload = await uploadDriveFile(accessToken, monthFolderId, weeklyFilename, new Uint8Array(weeklyPdf));

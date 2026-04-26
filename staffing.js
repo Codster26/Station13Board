@@ -205,7 +205,7 @@ async function initStaffingPage() {
     exportWeeklyRecordsButton.addEventListener("click", async () => {
       const referenceDateKey = window.storageService?.loadValue("systemMeta", {})?.displayDateKey || toDateKey(startOfDay(new Date()));
       exportWeeklyRecordsButton.disabled = true;
-      showStaffingExportStatus("Saving Staffing Hours and Weekly Staffing PDFs to Google Drive...");
+      showStaffingExportStatus("Saving Staffing Hours and Archived Hours PDFs to Google Drive...");
 
       try {
         const response = await fetch("/api/admin/export-weekly-records", {
