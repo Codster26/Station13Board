@@ -141,11 +141,26 @@ async function renderPdfFromPage(browser, targetUrl, selector, zoom, extraCss = 
     await page.waitForSelector(selector, { timeout: 30000 });
     await page.addStyleTag({
       content: `
+        html,
+        body {
+          min-height: 0 !important;
+          height: auto !important;
+        }
         body::before,
         .nav-menu,
         .menu-toggle,
         .manage-actions {
           display: none !important;
+        }
+        .board-page .page-shell,
+        .staffing-page .page-shell,
+        .page-shell,
+        .board-layout,
+        .staffing-card,
+        .daily-calendar-card,
+        .daily-calendar-wrap {
+          min-height: 0 !important;
+          height: auto !important;
         }
         .page-shell {
           width: 100% !important;
