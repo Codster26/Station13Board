@@ -2,7 +2,11 @@ const STAFFING_STORAGE_KEY = "station13-staffing-hours";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function toDateKey(date) {
-  return date.toISOString().slice(0, 10);
+  const localDate = new Date(date);
+  const year = localDate.getFullYear();
+  const month = String(localDate.getMonth() + 1).padStart(2, "0");
+  const day = String(localDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function startOfDay(date) {
@@ -99,6 +103,7 @@ function createHoursInput(member, dateKey, value, onChange) {
 function renderStaffingTable() {
   const boardData = loadBoardData();
   const activeMembers = boardData.activeMembers || [];
+  const activeMemberColors = boardData.colorRules?.activeMembers || {};
   const hoursData = loadHoursData();
   const head = document.getElementById("staffingHead");
   const body = document.getElementById("staffingBody");
@@ -141,23 +146,39 @@ function renderStaffingTable() {
 
   activeMembers.forEach((member) => {
     const row = document.createElement("tr");
+    const fillColor = activeMemberColors[member] || "";
+    const textColor = fillColor ? getReadableTextColor(fillColor) : "";
 
     const memberCell = document.createElement("td");
     memberCell.textContent = member;
     memberCell.className = "member-cell";
+    if (fillColor) {
+      memberCell.style.backgroundColor = fillColor;
+      memberCell.style.color = textColor;
+    }
     row.appendChild(memberCell);
 
     displayDates.forEach((date) => {
       const dateKey = toDateKey(date);
       const value = Number(hoursData[member]?.[dateKey] || 0);
       const cell = document.createElement("td");
-      cell.appendChild(createHoursInput(member, dateKey, value, handleHoursChange));
+      const input = createHoursInput(member, dateKey, value, handleHoursChange);
+      if (fillColor) {
+        cell.style.backgroundColor = fillColor;
+        cell.style.color = textColor;
+        input.style.color = textColor;
+      }
+      cell.appendChild(input);
       row.appendChild(cell);
     });
 
     const weekTotalCell = document.createElement("td");
     weekTotalCell.className = "week-total-cell";
     weekTotalCell.textContent = String(getWeekTotal(member, hoursData[member], currentSunday, yesterday));
+    if (fillColor) {
+      weekTotalCell.style.backgroundColor = fillColor;
+      weekTotalCell.style.color = textColor;
+    }
     row.appendChild(weekTotalCell);
 
     body.appendChild(row);

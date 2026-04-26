@@ -13,6 +13,12 @@ const DEFAULT_STATE = {
 };
 
 const TIME_ZONE = "America/New_York";
+const SHIFT_WINDOWS = {
+  a: { start: 0, end: 6 },
+  b: { start: 6, end: 12 },
+  c: { start: 12, end: 18 },
+  d: { start: 18, end: 24 }
+};
 
 function getDatePartsInTimeZone(date, timeZone = TIME_ZONE) {
   const formatter = new Intl.DateTimeFormat("en-US", {
@@ -183,6 +189,118 @@ function buildRolloverSummary({ sourceDateKey, archiveDateKey, currentDateKey, s
   };
 }
 
+function parseHourValue(rawValue) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return null;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function addHours(result, memberName, amount) {
+  if (!memberName || !amount || amount <= 0) {
+    return;
+  }
+
+  result[memberName] = (result[memberName] || 0) + amount;
+}
+
+function calculateRightColumnHours(shiftId, inValue, outValue) {
+  const window = SHIFT_WINDOWS[shiftId];
+  if (!window) {
+    return 0;
+  }
+
+  const inHour = parseHourValue(inValue);
+  const outHour = parseHourValue(outValue);
+
+  if (inHour !== null && outHour !== null) {
+    return Math.max(0, Math.min(window.end, outHour) - Math.max(window.start, inHour));
+  }
+
+  if (inHour !== null) {
+    return Math.max(0, window.end - Math.max(window.start, inHour));
+  }
+
+  if (outHour !== null) {
+    return Math.max(0, Math.min(window.end, outHour) - window.start);
+  }
+
+  return window.end - window.start;
+}
+
+function calculateCommandHours(shiftId, inValue, outValue) {
+  return calculateRightColumnHours(shiftId, inValue, outValue);
+}
+
+function calculateDailyHoursFromWeekly(weeklyAssignments, sourceDateKey) {
+  const result = {};
+  const assignments = weeklyAssignments || {};
+
+  Object.keys(SHIFT_WINDOWS).forEach((shiftId) => {
+    const window = SHIFT_WINDOWS[shiftId];
+
+    for (let row = 0; row < 15; row += 1) {
+      const prefix = `weekly-${sourceDateKey}-${shiftId}-${row}`;
+      const leftMember = assignments[`${prefix}-member1`] || "";
+      const rightMember = assignments[`${prefix}-member2`] || "";
+      const inValue = assignments[`${prefix}-in`] || "";
+      const outValue = assignments[`${prefix}-out`] || "";
+
+      addHours(result, leftMember, window.end - window.start);
+      addHours(result, rightMember, calculateRightColumnHours(shiftId, inValue, outValue));
+    }
+
+    const commandMember = assignments[`weekly-${sourceDateKey}-command-${shiftId}-member`] || "";
+    const commandIn = assignments[`weekly-${sourceDateKey}-command-${shiftId}-in`] || "";
+    const commandOut = assignments[`weekly-${sourceDateKey}-command-${shiftId}-out`] || "";
+    addHours(result, commandMember, calculateCommandHours(shiftId, commandIn, commandOut));
+  });
+
+  return result;
+}
+
+function applyCalculatedHoursToStaffing(state, sourceDateKey, targetDateKey) {
+  const nextState = clone({
+    ...DEFAULT_STATE,
+    ...(state || {}),
+    systemMeta: {
+      ...DEFAULT_STATE.systemMeta,
+      ...(state?.systemMeta || {})
+    }
+  });
+
+  const staffingHours = clone(nextState.staffingHours || {});
+  const calculatedHours = calculateDailyHoursFromWeekly(nextState.weeklyAssignments || {}, sourceDateKey);
+
+  Object.keys(staffingHours).forEach((memberName) => {
+    if (staffingHours[memberName] && Object.prototype.hasOwnProperty.call(staffingHours[memberName], targetDateKey)) {
+      delete staffingHours[memberName][targetDateKey];
+      if (Object.keys(staffingHours[memberName]).length === 0) {
+        delete staffingHours[memberName];
+      }
+    }
+  });
+
+  Object.entries(calculatedHours).forEach(([memberName, hours]) => {
+    if (!staffingHours[memberName]) {
+      staffingHours[memberName] = {};
+    }
+    staffingHours[memberName][targetDateKey] = hours;
+  });
+
+  nextState.staffingHours = staffingHours;
+  return {
+    state: nextState,
+    calculatedHours
+  };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -244,7 +362,12 @@ export default {
       const currentDateKey = getDateKeyInTimeZone(now);
       const sourceDateKey = body.sourceDateKey || currentDateKey;
       const state = await fetchCurrentState(env);
-      const nextState = runDailyRollover(state, {
+      const hoursResult = applyCalculatedHoursToStaffing(
+        state,
+        sourceDateKey,
+        body.targetDateKey || sourceDateKey
+      );
+      const nextState = runDailyRollover(hoursResult.state, {
         sourceDateKey,
         archiveDateKey: body.archiveDateKey || sourceDateKey,
         currentDateKey,
@@ -265,6 +388,30 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/admin/calculate-hours" && request.method === "POST") {
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (error) {
+        body = {};
+      }
+
+      const now = new Date();
+      const currentDateKey = getDateKeyInTimeZone(now);
+      const sourceDateKey = body.sourceDateKey || currentDateKey;
+      const targetDateKey = body.targetDateKey || sourceDateKey;
+      const state = await fetchCurrentState(env);
+      const result = applyCalculatedHoursToStaffing(state, sourceDateKey, targetDateKey);
+      await persistFullState(env, result.state);
+
+      return Response.json({
+        ok: true,
+        sourceDateKey,
+        targetDateKey,
+        calculatedHours: result.calculatedHours
+      });
+    }
+
     return env.ASSETS.fetch(request);
   },
 
@@ -282,7 +429,8 @@ export default {
       return;
     }
 
-    const nextState = runDailyRollover(state, {
+    const hoursResult = applyCalculatedHoursToStaffing(state, sourceDateKey, sourceDateKey);
+    const nextState = runDailyRollover(hoursResult.state, {
       sourceDateKey,
       archiveDateKey: sourceDateKey,
       currentDateKey,
