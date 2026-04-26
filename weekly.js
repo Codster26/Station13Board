@@ -31,9 +31,6 @@ const crewStatusColorsWeekly = {
   "Cover": "#0a53a8"
 };
 
-const testHoursButton = document.getElementById("testHoursButton");
-const weeklyStatus = document.getElementById("weeklyStatus");
-
 function loadWeeklyAssignments() {
   if (window.storageService) {
     return window.storageService.loadValue("weeklyAssignments", {}) || {};
@@ -60,15 +57,6 @@ function toDayKey(date) {
   const month = String(localDate.getMonth() + 1).padStart(2, "0");
   const day = String(localDate.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function showWeeklyStatus(message, isError = false) {
-  if (!weeklyStatus) {
-    return;
-  }
-
-  weeklyStatus.textContent = message;
-  weeklyStatus.classList.toggle("save-status--error", isError);
 }
 
 function addDays(date, offset) {
@@ -354,43 +342,6 @@ function renderWeeklyPage() {
 async function initWeeklyPage() {
   if (window.storageService) {
     await window.storageService.initializePersistence();
-  }
-
-  if (testHoursButton) {
-    testHoursButton.addEventListener("click", async () => {
-      const anchorDate = getWeeklyAnchorDate();
-      const sourceDateKey = toDayKey(anchorDate);
-      const targetDateKey = toDayKey(addDays(anchorDate, -1));
-
-      testHoursButton.disabled = true;
-      showWeeklyStatus("Calculating today's hours into Staffing Hours yesterday column...");
-
-      try {
-        const response = await fetch("/api/admin/calculate-hours", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            sourceDateKey,
-            targetDateKey,
-            shiftYesterdayColumn: true
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error("Could not calculate hours.");
-        }
-
-        const result = await response.json();
-        const memberCount = Object.keys(result.calculatedHours || {}).length;
-        showWeeklyStatus(`Shifted Staffing Hours yesterday column and calculated hours for ${memberCount} member${memberCount === 1 ? "" : "s"}.`);
-      } catch (error) {
-        showWeeklyStatus(error.message || "Could not calculate hours.", true);
-      } finally {
-        testHoursButton.disabled = false;
-      }
-    });
   }
 
   renderWeeklyPage();

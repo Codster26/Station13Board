@@ -1,5 +1,7 @@
 const STAFFING_STORAGE_KEY = "station13-staffing-hours";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const exportWeeklyRecordsButton = document.getElementById("exportWeeklyRecordsButton");
+const staffingExportStatus = document.getElementById("staffingExportStatus");
 
 function toDateKey(date) {
   const localDate = new Date(date);
@@ -11,6 +13,15 @@ function toDateKey(date) {
 
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function showStaffingExportStatus(message, isError = false) {
+  if (!staffingExportStatus) {
+    return;
+  }
+
+  staffingExportStatus.textContent = message;
+  staffingExportStatus.classList.toggle("save-status--error", isError);
 }
 
 function getSunday(date) {
@@ -189,6 +200,38 @@ async function initStaffingPage() {
   if (window.storageService) {
     await window.storageService.initializePersistence();
   }
+
+  if (exportWeeklyRecordsButton) {
+    exportWeeklyRecordsButton.addEventListener("click", async () => {
+      const referenceDateKey = window.storageService?.loadValue("systemMeta", {})?.displayDateKey || toDateKey(startOfDay(new Date()));
+      exportWeeklyRecordsButton.disabled = true;
+      showStaffingExportStatus("Saving Staffing Hours and Weekly Staffing PDFs to Google Drive...");
+
+      try {
+        const response = await fetch("/api/admin/export-weekly-records", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ referenceDateKey })
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error || "Could not save PDFs to Google Drive.");
+        }
+
+        const result = await response.json();
+        const fileNames = (result.files || []).map((file) => file.name).join(" and ");
+        showStaffingExportStatus(`Saved ${fileNames} to Google Drive.`);
+      } catch (error) {
+        showStaffingExportStatus(error.message || "Could not save PDFs to Google Drive.", true);
+      } finally {
+        exportWeeklyRecordsButton.disabled = false;
+      }
+    });
+  }
+
   renderStaffingTable();
 }
 

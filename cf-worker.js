@@ -8,11 +8,13 @@ const DEFAULT_STATE = {
   staffingHours: null,
   systemMeta: {
     lastScheduledSourceDate: null,
-    displayDateKey: null
+    displayDateKey: null,
+    lastWeeklyExportDate: null
   }
 };
 
 const TIME_ZONE = "America/New_York";
+const GOOGLE_DRIVE_ROOT_FOLDER_ID = "10Rvt65OFBMzWIa7F2oEJZjj9tMKmPGEi";
 const SHIFT_WINDOWS = {
   a: { start: 0, end: 6 },
   b: { start: 6, end: 12 },
@@ -66,6 +68,382 @@ function getVisibleStaffingDateKeys(referenceDateKey) {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function getMonthFolderLabel(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  const monthNumber = date.getMonth() + 1;
+  const monthName = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
+  return `${monthNumber} - ${monthName}`;
+}
+
+function escapePdfText(value) {
+  return String(value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
+}
+
+function padCell(value, width) {
+  return String(value ?? "").padEnd(width, " ");
+}
+
+function buildPdfBytes(title, lines) {
+  const encoder = new TextEncoder();
+  const lineHeight = 14;
+  const pageHeight = 792;
+  const topY = 760;
+  const leftX = 40;
+  const linesPerPage = 48;
+  const pages = [];
+
+  for (let index = 0; index < lines.length; index += linesPerPage) {
+    pages.push(lines.slice(index, index + linesPerPage));
+  }
+
+  if (pages.length === 0) {
+    pages.push(["No data available"]);
+  }
+
+  const objects = [];
+  objects.push("<< /Type /Catalog /Pages 2 0 R >>");
+
+  const pageObjectIds = [];
+  const contentObjectIds = [];
+  const fontObjectId = 3 + pages.length * 2;
+
+  pages.forEach((pageLines, pageIndex) => {
+    const pageObjectId = 3 + pageIndex * 2;
+    const contentObjectId = 4 + pageIndex * 2;
+    pageObjectIds.push(pageObjectId);
+    contentObjectIds.push(contentObjectId);
+
+    const textLines = [
+      "BT",
+      "/F1 16 Tf",
+      `${leftX} ${topY} Td`,
+      `(${escapePdfText(title)}) Tj`
+    ];
+
+    let currentY = topY - 24;
+    pageLines.forEach((line, lineIndex) => {
+      const fontSize = lineIndex === 0 && pageIndex === 0 ? 10 : 9;
+      textLines.push("ET");
+      textLines.push("BT");
+      textLines.push(`/F1 ${fontSize} Tf`);
+      textLines.push(`${leftX} ${currentY} Td`);
+      textLines.push(`(${escapePdfText(line)}) Tj`);
+      currentY -= lineHeight;
+    });
+    textLines.push("ET");
+
+    const contentStream = textLines.join("\n");
+    const contentBytes = encoder.encode(contentStream);
+
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${pageHeight}] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`);
+    objects.push(`<< /Length ${contentBytes.length} >>\nstream\n${contentStream}\nendstream`);
+  });
+
+  objects.splice(1, 0, `<< /Type /Pages /Count ${pages.length} /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(" ")}] >>`);
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>");
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+  for (let index = 1; index <= objects.length; index += 1) {
+    pdf += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+
+  return encoder.encode(pdf);
+}
+
+function getWeekNumberForDateKey(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function buildStaffingHoursPdf(state, referenceDateKey) {
+  const boardData = state.boardData || {};
+  const activeMembers = boardData.activeMembers || [];
+  const staffingHours = state.staffingHours || {};
+  const displayDateKeys = getVisibleStaffingDateKeys(referenceDateKey);
+  const yesterdayKey = displayDateKeys[0];
+  const weekNumber = getWeekNumberForDateKey(referenceDateKey);
+  const title = `${referenceDateKey} Week ${weekNumber} Staffing Hours`;
+  const header = [
+    padCell("Member", 24),
+    ...displayDateKeys.map((dateKey, index) => padCell(index === 0 ? "Yesterday" : dateKey.slice(5), 12)),
+    padCell("Total", 8)
+  ].join(" ");
+
+  const lines = [header, "-".repeat(header.length)];
+  activeMembers.forEach((memberName) => {
+    const memberHours = staffingHours[memberName] || {};
+    const total = Object.values(memberHours).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const row = [
+      padCell(memberName, 24),
+      ...displayDateKeys.map((dateKey) => padCell(memberHours[dateKey] ? String(memberHours[dateKey]) : "", 12)),
+      padCell(String(total || ""), 8)
+    ].join(" ");
+    lines.push(row);
+  });
+
+  if (lines.length <= 2) {
+    lines.push(`No staffing hour rows found for visible window ending ${yesterdayKey}.`);
+  }
+
+  return {
+    filename: `${referenceDateKey} Week ${weekNumber} Staffing Hours.pdf`,
+    bytes: buildPdfBytes(title, lines)
+  };
+}
+
+function buildWeeklyStaffingPdf(state, referenceDateKey) {
+  const weeklyAssignments = state.weeklyAssignments || {};
+  const boardData = state.boardData || {};
+  const command13Members = new Set(boardData.command13Members || []);
+  const visibleWeekDateKeys = Array.from({ length: 7 }, (_, index) => addDaysToDateKey(referenceDateKey, index));
+  const weekNumber = getWeekNumberForDateKey(referenceDateKey);
+  const title = `${referenceDateKey} Week ${weekNumber} Weekly Staffing`;
+  const lines = [];
+
+  visibleWeekDateKeys.forEach((dateKey, dayIndex) => {
+    lines.push(`${dayIndex === 0 ? "Today" : `+${dayIndex} Day`} - ${dateKey}`);
+    Object.keys(SHIFT_WINDOWS).forEach((shiftId) => {
+      const crewKey = `weekly-${dateKey}-crew-${shiftId}`;
+      const crewStatus = weeklyAssignments[crewKey] || "";
+      lines.push(`  ${shiftId.toUpperCase()} Shift (${SHIFT_WINDOWS[shiftId].start.toString().padStart(2, "0")}00-${SHIFT_WINDOWS[shiftId].end.toString().padStart(2, "0")}00) ${crewStatus ? `- ${crewStatus}` : ""}`.trim());
+
+      for (let row = 0; row < 15; row += 1) {
+        const prefix = `weekly-${dateKey}-${shiftId}-${row}`;
+        const member1 = weeklyAssignments[`${prefix}-member1`] || "";
+        const inTime = weeklyAssignments[`${prefix}-in`] || "";
+        const member2 = weeklyAssignments[`${prefix}-member2`] || "";
+        const outTime = weeklyAssignments[`${prefix}-out`] || "";
+
+        if (!member1 && !member2 && !inTime && !outTime) {
+          continue;
+        }
+
+        lines.push(`    ${padCell(member1, 22)} ${padCell(inTime, 4)} ${padCell(member2, 22)} ${padCell(outTime, 4)}`);
+      }
+
+      const commandMember = weeklyAssignments[`weekly-${dateKey}-command-${shiftId}-member`] || "";
+      const commandIn = weeklyAssignments[`weekly-${dateKey}-command-${shiftId}-in`] || "";
+      const commandOut = weeklyAssignments[`weekly-${dateKey}-command-${shiftId}-out`] || "";
+      if (commandMember || commandIn || commandOut) {
+        const label = command13Members.has(commandMember) ? "Command 13" : "Command 13";
+        lines.push(`    ${padCell(label, 22)} ${padCell(commandIn, 4)} ${padCell(commandMember, 22)} ${padCell(commandOut, 4)}`);
+      }
+    });
+    lines.push("");
+  });
+
+  return {
+    filename: `${referenceDateKey} Week ${weekNumber} Weekly Staffing.pdf`,
+    bytes: buildPdfBytes(title, lines)
+  };
+}
+
+function pemToArrayBuffer(pem) {
+  const normalized = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s+/g, "");
+  const binary = atob(normalized);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+function base64UrlEncode(input) {
+  const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function getGoogleAccessToken(env) {
+  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    throw new Error("Google Drive credentials are not configured.");
+  }
+
+  const credentials = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const header = { alg: "RS256", typ: "JWT" };
+  const claimSet = {
+    iss: credentials.client_email,
+    scope: "https://www.googleapis.com/auth/drive.file",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: nowSeconds + 3600,
+    iat: nowSeconds
+  };
+
+  const unsignedToken = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(claimSet))}`;
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToArrayBuffer(credentials.private_key),
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: "SHA-256"
+    },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsignedToken));
+  const jwt = `${unsignedToken}.${base64UrlEncode(new Uint8Array(signature))}`;
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not authenticate with Google Drive.");
+  }
+
+  const tokenData = await response.json();
+  return tokenData.access_token;
+}
+
+async function findDriveFolder(accessToken, parentId, folderName) {
+  const query = [
+    `name='${folderName.replace(/'/g, "\\'")}'`,
+    "mimeType='application/vnd.google-apps.folder'",
+    "trashed=false",
+    `'${parentId}' in parents`
+  ].join(" and ");
+
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&pageSize=1`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not look up Google Drive folders.");
+  }
+
+  const data = await response.json();
+  return data.files?.[0] || null;
+}
+
+async function createDriveFolder(accessToken, parentId, folderName) {
+  const response = await fetch("https://www.googleapis.com/drive/v3/files", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name: folderName,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not create Google Drive folder "${folderName}".`);
+  }
+
+  return response.json();
+}
+
+async function ensureDriveFolder(accessToken, parentId, folderName) {
+  const existing = await findDriveFolder(accessToken, parentId, folderName);
+  if (existing) {
+    return existing.id;
+  }
+
+  const created = await createDriveFolder(accessToken, parentId, folderName);
+  return created.id;
+}
+
+async function uploadDriveFile(accessToken, folderId, filename, bytes, mimeType = "application/pdf") {
+  const boundary = `station13board-${crypto.randomUUID()}`;
+  const metadata = {
+    name: filename,
+    parents: [folderId]
+  };
+
+  const prefix =
+    `--${boundary}\r\n` +
+    "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+    `${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType}\r\n\r\n`;
+  const suffix = `\r\n--${boundary}--`;
+
+  const body = new Uint8Array(
+    new TextEncoder().encode(prefix).length +
+    bytes.length +
+    new TextEncoder().encode(suffix).length
+  );
+  let offset = 0;
+  const prefixBytes = new TextEncoder().encode(prefix);
+  body.set(prefixBytes, offset);
+  offset += prefixBytes.length;
+  body.set(bytes, offset);
+  offset += bytes.length;
+  const suffixBytes = new TextEncoder().encode(suffix);
+  body.set(suffixBytes, offset);
+
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`
+    },
+    body
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not upload "${filename}" to Google Drive.`);
+  }
+
+  return response.json();
+}
+
+async function exportWeeklyRecordsToGoogleDrive(env, state, referenceDateKey) {
+  const accessToken = await getGoogleAccessToken(env);
+  const yearFolderId = await ensureDriveFolder(accessToken, GOOGLE_DRIVE_ROOT_FOLDER_ID, referenceDateKey.slice(0, 4));
+  const monthFolderId = await ensureDriveFolder(accessToken, yearFolderId, getMonthFolderLabel(referenceDateKey));
+  const staffingPdf = buildStaffingHoursPdf(state, referenceDateKey);
+  const weeklyPdf = buildWeeklyStaffingPdf(state, referenceDateKey);
+
+  const staffingUpload = await uploadDriveFile(accessToken, monthFolderId, staffingPdf.filename, staffingPdf.bytes);
+  const weeklyUpload = await uploadDriveFile(accessToken, monthFolderId, weeklyPdf.filename, weeklyPdf.bytes);
+
+  return {
+    folderId: monthFolderId,
+    files: [
+      { name: staffingPdf.filename, id: staffingUpload.id },
+      { name: weeklyPdf.filename, id: weeklyUpload.id }
+    ]
+  };
 }
 
 function runDailyRollover(state, {
@@ -474,6 +852,45 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/admin/export-weekly-records" && request.method === "POST") {
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (error) {
+        body = {};
+      }
+
+      const now = new Date();
+      const currentDateKey = getDateKeyInTimeZone(now);
+      const state = await fetchCurrentState(env);
+      const referenceDateKey = body.referenceDateKey || state?.systemMeta?.displayDateKey || currentDateKey;
+      try {
+        const result = await exportWeeklyRecordsToGoogleDrive(env, state, referenceDateKey);
+
+        const nextState = clone({
+          ...DEFAULT_STATE,
+          ...(state || {}),
+          systemMeta: {
+            ...DEFAULT_STATE.systemMeta,
+            ...(state?.systemMeta || {}),
+            lastWeeklyExportDate: referenceDateKey
+          }
+        });
+        await persistFullState(env, nextState);
+
+        return Response.json({
+          ok: true,
+          referenceDateKey,
+          ...result
+        });
+      } catch (error) {
+        return Response.json({
+          ok: false,
+          error: error.message || "Could not export weekly records."
+        }, { status: 500 });
+      }
+    }
+
     return env.ASSETS.fetch(request);
   },
 
@@ -506,6 +923,25 @@ export default {
       lastScheduledSourceDate: sourceDateKey
     };
 
-    ctx.waitUntil(persistFullState(env, nextState));
+    ctx.waitUntil((async () => {
+      let finalState = nextState;
+
+      if (new Date(`${currentDateKey}T00:00:00`).getDay() === 0 && finalState.systemMeta?.lastWeeklyExportDate !== currentDateKey) {
+        try {
+          await exportWeeklyRecordsToGoogleDrive(env, finalState, currentDateKey);
+          finalState = clone({
+            ...finalState,
+            systemMeta: {
+              ...(finalState.systemMeta || {}),
+              lastWeeklyExportDate: currentDateKey
+            }
+          });
+        } catch (error) {
+          console.error("Weekly Google Drive export failed:", error);
+        }
+      }
+
+      await persistFullState(env, finalState);
+    })());
   }
 };
