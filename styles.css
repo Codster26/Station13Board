@@ -58,9 +58,11 @@ body::before {
 }
 
 .board-page .page-shell {
-  height: 100vh;
+  min-height: 100vh;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding-top: 6px;
   padding-bottom: 8px;
 }
 
@@ -69,23 +71,9 @@ body::before {
   height: 100%;
   min-height: 0;
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(0, 1fr);
-}
-
-.board-page .daily-calendar-card {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-}
-
-.board-page .daily-calendar-wrap {
-  display: flex;
-  width: 100%;
-}
-
-.board-page .daily-calendar-table {
-  height: 100%;
-  width: 100%;
+  grid-template-rows: 1fr;
+  margin-top: 0;
+  gap: 0;
 }
 
 .hero {
@@ -124,7 +112,7 @@ body::before {
 }
 
 .hero h1 {
-  font-size: clamp(3rem, 3.7vw, 3.3rem);
+  font-size: clamp(4rem, 3.7vw, 3.3rem);
   line-height: 1.02;
   text-align: center;
 }
@@ -276,21 +264,49 @@ body::before {
 
 .riding-top-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 18px;
-  align-items: stretch;
+  grid-template-columns: clamp(300px, 20vw, 390px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: 0;
+}
+
+.board-calendar-stack {
+  display: grid;
+  grid-auto-rows: auto;
+  gap: 10px;
+  min-width: 0;
+  align-content: start;
+}
+
+.board-calendar-stack .daily-calendar-card {
+  display: block;
+  min-height: auto;
+}
+
+.board-calendar-stack .daily-calendar-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.riding-left-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
 }
 
 .assignment-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
+  grid-template-columns: 1fr;
+  gap: 8px;
   align-items: stretch;
 }
 
 .apparatus-card {
   overflow: hidden;
-  border-radius: 26px;
+  border-radius: 18px;
 }
 
 .apparatus-card--engine {
@@ -311,7 +327,7 @@ body::before {
   justify-content: center;
   padding: 2px 5px;
   border-bottom: 1px solid var(--line);
-  min-height: 64px;
+  min-height: 42px;
 }
 
 .apparatus-card--engine .apparatus-header {
@@ -329,7 +345,7 @@ body::before {
 .apparatus-header h2 {
   width: 100%;
   text-align: center;
-  font-size: clamp(3.95rem, 2.9vw, 2.8rem);
+  font-size: clamp(2.1rem, 2.0vw, 2.9rem);
   line-height: 1;
   white-space: nowrap;
   letter-spacing: 0.10em;
@@ -348,7 +364,7 @@ body::before {
   background: transparent;
   color: #f7fbff;
   font-family: "Cowboy Movie", "Cinzel", serif;
-  font-size: clamp(3.95rem, 2.9vw, 2.8rem);
+  font-size: clamp(2.1rem, 2.0vw, 2.9rem);
   letter-spacing: 0.10em;
   text-transform: uppercase;
   text-align: center;
@@ -361,17 +377,17 @@ body::before {
 }
 
 .seat-list {
-  padding: 5px 18px 13px;
+  padding: 3px 10px 8px;
 }
 
 .seat-row {
   display: grid;
-  grid-template-columns: minmax(100px, 140px) minmax(210px, 1fr);
+  grid-template-columns: 92px minmax(0, 1fr);
   align-items: center;
-  gap: 18px;
-  min-height: 57px;
-  margin-top: 8px;
-  padding: 0 4px 0 18px;
+  gap: 6px;
+  min-height: 42px;
+  margin-top: 4px;
+  padding: 0 4px 0 6px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -379,7 +395,7 @@ body::before {
 
 .seat-role {
   font-family: "Arial Black", Arial, sans-serif;
-  font-size: 1.5rem;
+  font-size: 1.10rem;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -412,14 +428,14 @@ body::before {
 
 .seat-input {
   width: 100%;
-  min-height: 49px;
-  border-radius: 18px;
+  min-height: 34px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: #dfe7f3;
-  font-size: 1.5rem;
+  font-size: 1.10rem;
   font-weight: 800;
-  padding: 9px 16px;
+  padding: 4px 8px;
   font-family: "Arial Black", Arial, sans-serif;
   outline: none;
   appearance: none;
@@ -444,10 +460,10 @@ body::before {
 .command-rail {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: repeat(3, 1fr);
-  gap: 18px;
+  grid-template-rows: repeat(3, auto);
+  gap: 8px;
   align-items: stretch;
-  height: 100%;
+  height: auto;
 }
 
 .command-card {
@@ -455,23 +471,23 @@ body::before {
 }
 
 .command-card .apparatus-header {
-  min-height: 56px;
+  min-height: 54px;
   padding: 2px 5px;
 }
 
 .command-card .apparatus-header h2 {
-  font-size: clamp(2rem, 1.72vw, 2.25rem);
+  font-size: 2rem;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
 }
 
 .command-card--command .apparatus-header h2 {
-  font-size: clamp(2rem, 1.72vw, 2.25rem);
+  font-size: 2rem;
 }
 
 .command-card--secondary .apparatus-header h2 {
-  font-size: clamp(2rem, 1.72vw, 2.25rem);
+  font-size: 2rem;
 }
 
 .command-card--coordinator .apparatus-header {
@@ -479,7 +495,7 @@ body::before {
 }
 
 .command-card--coordinator .apparatus-header h2 {
-  font-size: clamp(2rem, 1.72vw, 2.25rem);
+  font-size: 2rem;
 }
 
 .command-card--command .apparatus-header {
@@ -492,17 +508,17 @@ body::before {
 
 .seat-row--single {
   grid-template-columns: 1fr;
-  min-height: 74px;
+  min-height: 42px;
   padding: 0;
   overflow: hidden;
 }
 
 .command-card .seat-list {
-  padding: 8px 18px 18px;
+  padding: 4px 10px 8px;
 }
 
 .command-card .seat-row--single {
-  min-height: 61px;
+  min-height: 42px;
   margin-top: 0;
   border: 0;
   border-radius: 0;
@@ -521,14 +537,14 @@ body::before {
   background-image: none;
   box-shadow: none;
   height: 100%;
-  padding: 0 16px;
+  padding: 0 1px;
   text-align: center;
   text-align-last: center;
   border-radius: 0;
 }
 
 .command-card .seat-row--single .seat-input {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 800;
 }
 
@@ -965,6 +981,22 @@ body::before {
   border-collapse: collapse;
   color: #e6eefb;
   background: transparent;
+}
+
+.board-bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.board-bottom-nav .top-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border-radius: 12px;
+  font-size: 0.92rem;
 }
 
 .daily-calendar-table th,

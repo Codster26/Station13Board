@@ -11,74 +11,61 @@
 </head>
 <body class="board-page">
   <div class="page-shell">
-    <header class="hero hero--with-link">
-      <h1 class="board-title">STATION 13 RIDING BOARD</h1>
-      <details class="nav-menu">
-        <summary class="menu-toggle">
-          <span class="sr-only">Open navigation</span>
-          <span class="menu-toggle__line"></span>
-          <span class="menu-toggle__line"></span>
-          <span class="menu-toggle__line"></span>
-        </summary>
-        <nav class="top-links top-links--menu">
-          <a class="top-link" href="manage.html">Manage Members</a>
-          <a class="top-link" href="staffing.html">Staffing Hours</a>
-          <a class="top-link" href="weekly.html">Weekly Staffing</a>
-          <a class="top-link" href="archived.html">Archived Hours</a>
-          <a class="top-link" href="daily-crews.html">Daily Crews</a>
-        </nav>
-      </details>
-    </header>
-
     <main class="board-layout">
       <section class="riding-top-layout">
-        <section class="assignment-grid" id="assignmentGrid"></section>
+        <section class="riding-left-stack">
+          <section class="assignment-grid" id="assignmentGrid"></section>
 
-        <section class="command-rail">
-          <article class="apparatus-card command-card command-card--coordinator">
-            <header class="apparatus-header">
-              <h2>Station Coordinator</h2>
-            </header>
-            <div class="seat-list">
-              <div class="seat-row seat-row--single">
-                <select class="seat-input" data-seat="station-coordinator" data-default="MacCormac, W.">
-                </select>
+          <section class="command-rail">
+            <article class="apparatus-card command-card command-card--coordinator">
+              <header class="apparatus-header">
+                <h2>Station Coordinator</h2>
+              </header>
+              <div class="seat-list">
+                <div class="seat-row seat-row--single">
+                  <select class="seat-input" data-seat="station-coordinator" data-default="MacCormac, W.">
+                  </select>
+                </div>
               </div>
-            </div>
-          </article>
+            </article>
 
-          <article class="apparatus-card command-card command-card--command">
-            <header class="apparatus-header">
-              <h2>Command Vehicle</h2>
-            </header>
-            <div class="seat-list">
-              <div class="seat-row seat-row--single">
-                <select class="seat-input" data-seat="command-vehicle" data-default="Harris, M.">
-                </select>
+            <article class="apparatus-card command-card command-card--command">
+              <header class="apparatus-header">
+                <h2>Command Vehicle</h2>
+              </header>
+              <div class="seat-list">
+                <div class="seat-row seat-row--single">
+                  <select class="seat-input" data-seat="command-vehicle" data-default="Harris, M.">
+                  </select>
+                </div>
               </div>
-            </div>
-          </article>
+            </article>
 
-          <article class="apparatus-card command-card command-card--secondary">
-            <header class="apparatus-header">
-              <h2>13 Command 2</h2>
-            </header>
-            <div class="seat-list">
-              <div class="seat-row seat-row--single">
-                <select class="seat-input seat-input--empty" data-seat="command-2" data-default="Open Assignment">
-                </select>
+            <article class="apparatus-card command-card command-card--secondary">
+              <header class="apparatus-header">
+                <h2>13 Command 2</h2>
+              </header>
+              <div class="seat-list">
+                <div class="seat-row seat-row--single">
+                  <select class="seat-input seat-input--empty" data-seat="command-2" data-default="Open Assignment">
+                  </select>
+                </div>
               </div>
-            </div>
-          </article>
+            </article>
+          </section>
         </section>
-      </section>
 
-      <section class="daily-calendar-card">
-        <div class="daily-calendar-wrap">
-          <table class="daily-calendar-table" id="dailyCalendarTable"></table>
-        </div>
+        <section class="board-calendar-stack" id="boardCalendarStack"></section>
       </section>
     </main>
+
+    <nav class="board-bottom-nav" aria-label="Riding board pages">
+      <a class="top-link" href="manage.html">Manage Members</a>
+      <a class="top-link" href="staffing.html">Staffing Hours</a>
+      <a class="top-link" href="weekly.html">Weekly Staffing</a>
+      <a class="top-link" href="archived.html">Archived Hours</a>
+      <a class="top-link" href="daily-crews.html">Daily Crews</a>
+    </nav>
   </div>
 
   <script src="persistence.js"></script>

@@ -397,6 +397,12 @@ function getDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
+function addDays(date, offsetDays) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + offsetDays);
+  return nextDate;
+}
+
 function populateBoardDropdowns() {
   const boardData = loadBoardData();
   const selects = document.querySelectorAll("select[data-seat]");
@@ -517,13 +523,13 @@ function ensureDailyCalendarStartsBlank(boardData) {
   });
 }
 
-function formatDisplayDate() {
+function formatDisplayDate(date = new Date()) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric"
-  }).format(new Date());
+  }).format(date);
 }
 
 function appendCalendarColGroup(table, includeSideColumn = true) {
@@ -546,21 +552,24 @@ function appendCalendarColGroup(table, includeSideColumn = true) {
   table.appendChild(colgroup);
 }
 
-function renderDailyCalendar() {
-  const table = document.getElementById("dailyCalendarTable");
-  if (!table) {
-    return;
-  }
+function renderDailyCalendarBlock(dayDate, dayLabel, boardData, weeklyAssignments) {
+  const card = document.createElement("section");
+  card.className = "daily-calendar-card";
 
-  const boardData = ensureDailyCalendarStartsBlank(loadBoardData());
+  const wrap = document.createElement("div");
+  wrap.className = "daily-calendar-wrap";
+  card.appendChild(wrap);
+
+  const table = document.createElement("table");
+  table.className = "daily-calendar-table";
+  wrap.appendChild(table);
+
   const activeMembers = boardData.activeMembers || [];
   const command13Members = boardData.command13Members || [];
   const activeMemberColors = boardData.colorRules?.activeMembers || {};
   const command13Colors = boardData.colorRules?.command13 || {};
-  const weeklyAssignments = loadWeeklyAssignments();
-  const todayKey = getDateKey(new Date());
+  const dayKey = getDateKey(dayDate);
 
-  table.innerHTML = "";
   appendCalendarColGroup(table);
 
   const headerShiftRow = document.createElement("tr");
@@ -595,7 +604,7 @@ function renderDailyCalendar() {
     const th = document.createElement("th");
     th.className = "dc-crew-title";
     th.colSpan = 4;
-    const crewKey = `weekly-${todayKey}-crew-${shift.id}`;
+    const crewKey = `weekly-${dayKey}-crew-${shift.id}`;
     const crewValue = weeklyAssignments[crewKey] || "Not Staffed";
     th.appendChild(createDailySelect("crew", crewKey, activeMembers, crewValue, weeklyAssignments));
     crewRow.appendChild(th);
@@ -614,12 +623,12 @@ function renderDailyCalendar() {
 
       const today = document.createElement("div");
       today.className = "dc-side-cell--today";
-      today.textContent = "Today";
+      today.textContent = dayLabel;
       contentWrap.appendChild(today);
 
       const date = document.createElement("div");
       date.className = "dc-side-cell--date";
-      date.textContent = formatDisplayDate();
+      date.textContent = formatDisplayDate(dayDate);
       contentWrap.appendChild(date);
 
       sideCell.appendChild(contentWrap);
@@ -627,7 +636,7 @@ function renderDailyCalendar() {
     }
 
     shiftConfigs.forEach((shift) => {
-      const prefix = `weekly-${todayKey}-${shift.id}-${row}`;
+      const prefix = `weekly-${dayKey}-${shift.id}-${row}`;
       const cells = [
         { kind: "name", key: `${prefix}-member1` },
         { kind: "time", key: `${prefix}-in` },
@@ -657,23 +666,43 @@ function renderDailyCalendar() {
     commandRow.appendChild(labelCell);
 
     const inCell = document.createElement("td");
-    const commandInKey = `weekly-${todayKey}-command-${shift.id}-in`;
+    const commandInKey = `weekly-${dayKey}-command-${shift.id}-in`;
     inCell.appendChild(createDailySelect("time", commandInKey, activeMembers, weeklyAssignments[commandInKey] || "", weeklyAssignments));
     commandRow.appendChild(inCell);
 
     const memberCell = document.createElement("td");
-    const commandKey = `weekly-${todayKey}-command-${shift.id}-member`;
+    const commandKey = `weekly-${dayKey}-command-${shift.id}-member`;
     const commandValue = weeklyAssignments[commandKey] || "";
     memberCell.appendChild(createDailySelect("name", commandKey, activeMembers, commandValue, weeklyAssignments, command13Members, command13Colors));
     commandRow.appendChild(memberCell);
 
     const outCell = document.createElement("td");
-    const commandOutKey = `weekly-${todayKey}-command-${shift.id}-out`;
+    const commandOutKey = `weekly-${dayKey}-command-${shift.id}-out`;
     outCell.appendChild(createDailySelect("time", commandOutKey, activeMembers, weeklyAssignments[commandOutKey] || "", weeklyAssignments));
     commandRow.appendChild(outCell);
   });
 
   table.appendChild(commandRow);
+  return card;
+}
+
+function renderDailyCalendar() {
+  const stack = document.getElementById("boardCalendarStack");
+  if (!stack) {
+    return;
+  }
+
+  const boardData = ensureDailyCalendarStartsBlank(loadBoardData());
+  const weeklyAssignments = loadWeeklyAssignments();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  stack.innerHTML = "";
+  for (let offset = 0; offset < 7; offset += 1) {
+    const day = addDays(today, offset);
+    const label = offset === 0 ? "Today" : day.toLocaleDateString("en-US", { weekday: "long" });
+    stack.appendChild(renderDailyCalendarBlock(day, label, boardData, weeklyAssignments));
+  }
 }
 
 async function initBoardPage() {
