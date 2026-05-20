@@ -263,9 +263,10 @@ body::before {
 }
 
 .riding-top-layout {
+  --board-calendar-day-height: calc((100vh - 48px) / 2);
   display: grid;
-  grid-template-columns: clamp(300px, 20vw, 390px) minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: clamp(200px, 13.8vw, 263px) minmax(0, 1fr);
+  gap: 8px;
   align-items: start;
   min-height: 0;
 }
@@ -285,28 +286,31 @@ body::before {
 
 .board-calendar-stack .daily-calendar-wrap {
   width: 100%;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .riding-left-stack {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto auto;
-  align-content: start;
-  gap: 8px;
+  grid-template-rows: minmax(0, 1fr) 246px;
+  align-content: stretch;
+  gap: 4px;
+  height: calc((var(--board-calendar-day-height) * 2) + 10px);
   min-width: 0;
 }
 
 .assignment-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 8px;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 4px;
   align-items: stretch;
+  min-height: 0;
 }
 
 .apparatus-card {
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 16px;
 }
 
 .apparatus-card--engine {
@@ -327,7 +331,11 @@ body::before {
   justify-content: center;
   padding: 2px 5px;
   border-bottom: 1px solid var(--line);
-  min-height: 42px;
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  overflow: hidden;
 }
 
 .apparatus-card--engine .apparatus-header {
@@ -345,10 +353,11 @@ body::before {
 .apparatus-header h2 {
   width: 100%;
   text-align: center;
-  font-size: clamp(2.1rem, 2.0vw, 2.9rem);
+  font-size: clamp(1.45rem, 1.48vw, 1.9rem);
   line-height: 1;
   white-space: nowrap;
   letter-spacing: 0.10em;
+  overflow: hidden;
 }
 
 .apparatus-header .search-combobox {
@@ -364,12 +373,13 @@ body::before {
   background: transparent;
   color: #f7fbff;
   font-family: "Cowboy Movie", "Cinzel", serif;
-  font-size: clamp(2.1rem, 2.0vw, 2.9rem);
+  font-size: clamp(1.45rem, 1.48vw, 1.9rem);
   letter-spacing: 0.10em;
   text-transform: uppercase;
   text-align: center;
   line-height: 1;
   padding: 0;
+  overflow: hidden;
 }
 
 .apparatus-header-input::placeholder {
@@ -377,16 +387,16 @@ body::before {
 }
 
 .seat-list {
-  padding: 3px 10px 8px;
+  padding: 1px 8px 4px;
 }
 
 .seat-row {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: 76px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
-  min-height: 42px;
-  margin-top: 4px;
+  min-height: 28px;
+  margin-top: 2px;
   padding: 0 4px 0 6px;
   border: 0;
   border-radius: 0;
@@ -395,7 +405,7 @@ body::before {
 
 .seat-role {
   font-family: "Arial Black", Arial, sans-serif;
-  font-size: 1.10rem;
+  font-size: 0.95rem;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -428,14 +438,14 @@ body::before {
 
 .seat-input {
   width: 100%;
-  min-height: 34px;
-  border-radius: 12px;
+  min-height: 24px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: #dfe7f3;
-  font-size: 1.10rem;
+  font-size: 0.95rem;
   font-weight: 800;
-  padding: 4px 8px;
+  padding: 2px 6px;
   font-family: "Arial Black", Arial, sans-serif;
   outline: none;
   appearance: none;
@@ -460,34 +470,59 @@ body::before {
 .command-rail {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: repeat(3, auto);
-  gap: 8px;
+  grid-template-rows: repeat(3, 78px);
+  gap: 18.5px;
   align-items: stretch;
-  height: auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.board-page .apparatus-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.board-page .apparatus-card .seat-list {
+  display: grid;
+  align-items: center;
+}
+
+.board-page .apparatus-card .seat-row {
+  min-height: 0;
+  margin-top: 0;
+}
+
+.board-page .apparatus-card .seat-input {
+  min-height: 28px;
 }
 
 .command-card {
+  display: grid;
+  grid-template-rows: 39px 39px;
+  align-content: start;
   background: linear-gradient(180deg, rgba(35, 58, 86, 0.2), rgba(10, 20, 35, 0.92));
 }
 
 .command-card .apparatus-header {
-  min-height: 54px;
+  height: 39px;
+  min-height: 39px;
+  max-height: 39px;
   padding: 2px 5px;
 }
 
 .command-card .apparatus-header h2 {
-  font-size: 2rem;
+  font-size: 1.3rem;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
 }
 
 .command-card--command .apparatus-header h2 {
-  font-size: 2rem;
+  font-size: 1.3rem;
 }
 
 .command-card--secondary .apparatus-header h2 {
-  font-size: 2rem;
+  font-size: 1.3rem;
 }
 
 .command-card--coordinator .apparatus-header {
@@ -495,7 +530,7 @@ body::before {
 }
 
 .command-card--coordinator .apparatus-header h2 {
-  font-size: 2rem;
+  font-size: 1.3rem;
 }
 
 .command-card--command .apparatus-header {
@@ -508,17 +543,24 @@ body::before {
 
 .seat-row--single {
   grid-template-columns: 1fr;
-  min-height: 42px;
+  min-height: 28px;
   padding: 0;
   overflow: hidden;
 }
 
 .command-card .seat-list {
-  padding: 4px 10px 8px;
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  height: 39px;
+  min-height: 39px;
+  padding: 0 8px;
 }
 
 .command-card .seat-row--single {
-  min-height: 42px;
+  width: 100%;
+  height: 39px;
+  min-height: 39px;
   margin-top: 0;
   border: 0;
   border-radius: 0;
@@ -529,6 +571,7 @@ body::before {
   height: 100%;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .seat-row--single .seat-input {
@@ -536,16 +579,22 @@ body::before {
   background: transparent;
   background-image: none;
   box-shadow: none;
-  height: 100%;
+  height: auto;
+  height: 39px;
+  min-height: 39px;
   padding: 0 1px;
   text-align: center;
   text-align-last: center;
   border-radius: 0;
+  line-height: 39px;
 }
 
 .command-card .seat-row--single .seat-input {
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .seat-row--single .seat-input option {
@@ -983,6 +1032,44 @@ body::before {
   background: transparent;
 }
 
+.board-page .daily-calendar-table {
+  table-layout: fixed;
+  min-width: 0;
+}
+
+.board-page .dc-col-side {
+  width: 128px;
+}
+
+.board-page .dc-col-member {
+  width: auto;
+}
+
+.board-page .dc-col-time {
+  width: 62px;
+}
+
+.board-page .daily-calendar-table th,
+.board-page .daily-calendar-table td {
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.board-page .dc-shift-title {
+  font-size: 0.9rem;
+}
+
+.board-page .dc-column-title,
+.board-page .dc-crew-title,
+.board-page .dc-crew-title .daily-select {
+  font-size: 0.82rem;
+}
+
+.board-page .daily-select {
+  font-size: 0.82rem;
+  padding: 0;
+}
+
 .board-bottom-nav {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1123,7 +1210,7 @@ body::before {
   font-family: "Arial Black", Arial, sans-serif;
   color: #e8f0ff;
   padding: 2px 5px;
-  line-height: 1.2;
+  line-height: 1.3;
   appearance: none;
   background-image: none;
 }
