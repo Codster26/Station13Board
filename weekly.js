@@ -250,16 +250,8 @@ function renderDayBlock(dayDate, dayIndex, activeMembers, command13Members, acti
       sideCell.className = "dc-side-cell";
       sideCell.rowSpan = weeklySlotCount + 1;
 
-      const sideContent = document.createElement("div");
-      sideContent.className = "dc-side-content";
-      const title = document.createElement("div");
-      title.className = "dc-side-cell--today";
-      title.textContent = dayIndex === 0 ? "Today" : dayDate.toLocaleDateString("en-US", { weekday: "long" });
-      const date = document.createElement("div");
-      date.className = "dc-side-cell--date";
-      date.textContent = formatDateLong(dayDate);
-      sideContent.appendChild(title);
-      sideContent.appendChild(date);
+      const title = dayIndex === 0 ? "Today" : dayDate.toLocaleDateString("en-US", { weekday: "long" });
+      const sideContent = createCalendarSideContent(dayKey, title, formatDateLong(dayDate), loadBoardData());
       sideCell.appendChild(sideContent);
       tr.appendChild(sideCell);
     }

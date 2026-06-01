@@ -453,6 +453,18 @@ async function exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDa
   };
 }
 
+function clearArchivedRecordsAfterExport(state) {
+  return clone({
+    ...DEFAULT_STATE,
+    ...(state || {}),
+    archivedAssignments: {},
+    systemMeta: {
+      ...DEFAULT_STATE.systemMeta,
+      ...(state?.systemMeta || {})
+    }
+  });
+}
+
 function runDailyRollover(state, {
   sourceDateKey,
   archiveDateKey = sourceDateKey,
@@ -907,8 +919,7 @@ export default {
         const result = await exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDateKey);
 
         const nextState = clone({
-          ...DEFAULT_STATE,
-          ...(state || {}),
+          ...clearArchivedRecordsAfterExport(state),
           systemMeta: {
             ...DEFAULT_STATE.systemMeta,
             ...(state?.systemMeta || {}),
@@ -920,6 +931,7 @@ export default {
         return Response.json({
           ok: true,
           referenceDateKey,
+          archivedReset: true,
           ...result
         });
       } catch (error) {
@@ -968,7 +980,7 @@ export default {
       if (new Date(`${currentDateKey}T00:00:00`).getDay() === 0 && finalState.systemMeta?.lastWeeklyExportDate !== currentDateKey) {
         try {
           await exportWeeklyRecordsToGoogleDrive(null, env, finalState, currentDateKey);
-          finalState = clone({
+          finalState = clearArchivedRecordsAfterExport({
             ...finalState,
             systemMeta: {
               ...(finalState.systemMeta || {}),

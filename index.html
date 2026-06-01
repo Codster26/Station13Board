@@ -13,46 +13,55 @@
   <div class="page-shell">
     <main class="board-layout">
       <section class="riding-top-layout">
-        <section class="riding-left-stack">
-          <section class="assignment-grid" id="assignmentGrid"></section>
+        <section class="riding-left-column">
+          <section class="riding-left-stack">
+            <section class="assignment-grid" id="assignmentGrid"></section>
 
-          <section class="command-rail">
-            <article class="apparatus-card command-card command-card--coordinator">
-              <header class="apparatus-header">
-                <h2>Station Coordinator</h2>
-              </header>
-              <div class="seat-list">
-                <div class="seat-row seat-row--single">
-                  <select class="seat-input" data-seat="station-coordinator" data-default="MacCormac, W.">
-                  </select>
+            <section class="command-rail">
+              <article class="apparatus-card command-card command-card--coordinator">
+                <header class="apparatus-header">
+                  <h2>Station Coordinator</h2>
+                </header>
+                <div class="seat-list">
+                  <div class="seat-row seat-row--single">
+                    <select class="seat-input" data-seat="station-coordinator" data-default="MacCormac, W.">
+                    </select>
+                  </div>
                 </div>
-              </div>
-            </article>
+              </article>
 
-            <article class="apparatus-card command-card command-card--command">
-              <header class="apparatus-header">
-                <h2>Command Vehicle</h2>
-              </header>
-              <div class="seat-list">
-                <div class="seat-row seat-row--single">
-                  <select class="seat-input" data-seat="command-vehicle" data-default="Harris, M.">
-                  </select>
+              <article class="apparatus-card command-card command-card--command">
+                <header class="apparatus-header">
+                  <h2>Command Vehicle</h2>
+                </header>
+                <div class="seat-list">
+                  <div class="seat-row seat-row--single">
+                    <select class="seat-input" data-seat="command-vehicle" data-default="Harris, M.">
+                    </select>
+                  </div>
                 </div>
-              </div>
-            </article>
+              </article>
 
-            <article class="apparatus-card command-card command-card--secondary">
-              <header class="apparatus-header">
-                <h2>13 Command 2</h2>
-              </header>
-              <div class="seat-list">
-                <div class="seat-row seat-row--single">
-                  <select class="seat-input seat-input--empty" data-seat="command-2" data-default="Open Assignment">
-                  </select>
+              <article class="apparatus-card command-card command-card--secondary">
+                <header class="apparatus-header">
+                  <h2>13 Command 2</h2>
+                </header>
+                <div class="seat-list">
+                  <div class="seat-row seat-row--single">
+                    <select class="seat-input seat-input--empty" data-seat="command-2" data-default="Open Assignment">
+                    </select>
+                  </div>
                 </div>
-              </div>
-            </article>
+              </article>
+            </section>
           </section>
+
+          <article class="apparatus-card out-service-card">
+            <header class="apparatus-header">
+              <h2>Member Out of Service</h2>
+            </header>
+            <div class="out-service-table" id="outServiceTable"></div>
+          </article>
         </section>
 
         <section class="board-calendar-stack" id="boardCalendarStack"></section>

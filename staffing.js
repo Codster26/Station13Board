@@ -161,12 +161,16 @@ function renderStaffingTable() {
     const row = document.createElement("tr");
     const fillColor = liveIns.has(member) ? LIVE_IN_COLOR : (activeMemberColors[member] || "");
     const textColor = fillColor ? getReadableTextColor(fillColor) : "";
+    if (fillColor) {
+      row.className = "staffing-row--filled";
+      row.style.setProperty("--staffing-row-fill", fillColor);
+      row.style.setProperty("--staffing-row-text", textColor);
+    }
 
     const memberCell = document.createElement("td");
     memberCell.textContent = member;
     memberCell.className = "member-cell";
     if (fillColor) {
-      memberCell.style.backgroundColor = fillColor;
       memberCell.style.color = textColor;
     }
     row.appendChild(memberCell);
@@ -177,7 +181,6 @@ function renderStaffingTable() {
       const cell = document.createElement("td");
       const input = createHoursInput(member, dateKey, value, handleHoursChange);
       if (fillColor) {
-        cell.style.backgroundColor = fillColor;
         cell.style.color = textColor;
         input.style.color = textColor;
       }
@@ -189,7 +192,6 @@ function renderStaffingTable() {
     weekTotalCell.className = "week-total-cell";
     weekTotalCell.textContent = String(getWeekTotal(member, hoursData[member], currentSunday, yesterday));
     if (fillColor) {
-      weekTotalCell.style.backgroundColor = fillColor;
       weekTotalCell.style.color = textColor;
     }
     row.appendChild(weekTotalCell);

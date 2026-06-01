@@ -510,6 +510,7 @@ const DEFAULT_BOARD_DATA = {
     "Harris, M. - Fire Chief",
     "Hassel, Ed - Past Chief"
   ],
+  outOfService: [],
   liveIns: [
     "Conlin, P.",
     "Cripps, N.",
@@ -527,6 +528,12 @@ const DEFAULT_BOARD_DATA = {
     "Straub, M."
   ],
   colorTags: {},
+  calendarTags: {
+    RA1: "#11734b",
+    RA2: "#11734b",
+    "Live Burn": "#ffc8aa"
+  },
+  calendarNotes: {},
   colorRules: {
     activeMembers: {},
     engineDriver: {},
@@ -592,8 +599,18 @@ function mergeWithDefaults(stored) {
       roof: uniqueNames(stored?.rolePools?.roof || DEFAULT_BOARD_DATA.activeMembers)
     },
     command13Members: uniqueNames(stored?.command13Members || DEFAULT_BOARD_DATA.command13Members),
+    outOfService: Array.from({ length: 10 }, (_, index) => {
+      const entry = stored?.outOfService?.[index] || {};
+      return {
+        member: String(entry.member || "").trim(),
+        start: String(entry.start || "").trim(),
+        finish: String(entry.finish || "").trim()
+      };
+    }),
     liveIns: uniqueNames(stored?.liveIns || DEFAULT_BOARD_DATA.liveIns),
     colorTags: { ...(stored?.colorTags || DEFAULT_BOARD_DATA.colorTags) },
+    calendarTags: { ...(stored?.calendarTags || DEFAULT_BOARD_DATA.calendarTags) },
+    calendarNotes: { ...(stored?.calendarNotes || DEFAULT_BOARD_DATA.calendarNotes) },
     colorRules: {
       activeMembers: legacySharedColors ? {} : { ...(stored?.colorRules?.activeMembers || {}) },
       engineDriver: { ...(stored?.colorRules?.engineDriver || {}) },
@@ -737,6 +754,91 @@ function formatNameColorList(names, colorMap, tagMap = {}) {
       return color ? `${name} - ${color}` : name;
     })
     .join("\n");
+}
+
+function applyCalendarTagFill(select, boardData) {
+  const color = boardData?.calendarTags?.[select.value] || "";
+  select.style.backgroundColor = color || "";
+  select.style.color = color ? getReadableTextColor(color) : "";
+}
+
+function saveCalendarNote(dayKey, patch) {
+  const latestData = loadBoardData();
+  const notes = { ...(latestData.calendarNotes || {}) };
+  const nextNote = {
+    ...(notes[dayKey] || {}),
+    ...patch
+  };
+
+  if (!nextNote.tag && !nextNote.description) {
+    delete notes[dayKey];
+  } else {
+    notes[dayKey] = nextNote;
+  }
+
+  saveBoardData({
+    ...latestData,
+    calendarNotes: notes
+  });
+}
+
+function createCalendarSideContent(dayKey, dayLabel, dateText, boardData) {
+  const contentWrap = document.createElement("div");
+  contentWrap.className = "dc-side-content";
+
+  const note = boardData.calendarNotes?.[dayKey] || {};
+  const calendarTags = boardData.calendarTags || {};
+  const tagOptions = Object.keys(calendarTags);
+  if (note.tag && !tagOptions.includes(note.tag)) {
+    tagOptions.push(note.tag);
+  }
+
+  const tagSelect = document.createElement("select");
+  tagSelect.className = "dc-side-tag-select";
+  tagSelect.setAttribute("aria-label", `${dayLabel} calendar tag`);
+
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "";
+  tagSelect.appendChild(emptyOption);
+
+  tagOptions.forEach((tag) => {
+    const option = document.createElement("option");
+    option.value = tag;
+    option.textContent = tag;
+    tagSelect.appendChild(option);
+  });
+
+  tagSelect.value = note.tag || "";
+  applyCalendarTagFill(tagSelect, boardData);
+  tagSelect.addEventListener("change", () => {
+    saveCalendarNote(dayKey, { tag: tagSelect.value });
+    applyCalendarTagFill(tagSelect, loadBoardData());
+  });
+  contentWrap.appendChild(tagSelect);
+
+  const today = document.createElement("div");
+  today.className = "dc-side-cell--today";
+  today.textContent = dayLabel;
+  contentWrap.appendChild(today);
+
+  const date = document.createElement("div");
+  date.className = "dc-side-cell--date";
+  date.textContent = dateText;
+  contentWrap.appendChild(date);
+
+  const description = document.createElement("textarea");
+  description.className = "dc-side-description";
+  description.value = note.description || "";
+  description.placeholder = "";
+  description.rows = 3;
+  description.setAttribute("aria-label", `${dayLabel} calendar description`);
+  description.addEventListener("change", () => {
+    saveCalendarNote(dayKey, { description: description.value.trim() });
+  });
+  contentWrap.appendChild(description);
+
+  return contentWrap;
 }
 
 function getReadableTextColor(hexColor) {

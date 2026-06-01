@@ -250,16 +250,8 @@ function renderArchivedDayBlock(dayDate, dayIndex, activeMembers, command13Membe
       sideCell.className = "dc-side-cell";
       sideCell.rowSpan = archivedSlotCount + 1;
 
-      const sideContent = document.createElement("div");
-      sideContent.className = "dc-side-content";
-      const title = document.createElement("div");
-      title.className = "dc-side-cell--today";
-      title.textContent = dayIndex === 0 ? "Yesterday" : dayDate.toLocaleDateString("en-US", { weekday: "long" });
-      const date = document.createElement("div");
-      date.className = "dc-side-cell--date";
-      date.textContent = formatArchivedDateLong(dayDate);
-      sideContent.appendChild(title);
-      sideContent.appendChild(date);
+      const title = dayIndex === 0 ? "Yesterday" : dayDate.toLocaleDateString("en-US", { weekday: "long" });
+      const sideContent = createCalendarSideContent(dayKey, title, formatArchivedDateLong(dayDate), loadBoardData());
       sideCell.appendChild(sideContent);
       tr.appendChild(sideCell);
     }

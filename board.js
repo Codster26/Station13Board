@@ -90,8 +90,10 @@ const APPARATUS_LABEL_TO_ID = Object.fromEntries(
 );
 
 const slotCount = 15;
+const outOfServiceSlotCount = 10;
 const DAILY_BLANK_VERSION = "1";
 const WEEKLY_STORAGE_KEY = "station13-weekly-calendar";
+let activeOutServiceDateMenu = null;
 
 const crewStatusOptions = [
   "Not Staffed",
@@ -453,6 +455,226 @@ function populateBoardDropdowns() {
   });
 }
 
+function renderOutOfServiceCard() {
+  const table = document.getElementById("outServiceTable");
+  if (!table) {
+    return;
+  }
+
+  const boardData = loadBoardData();
+  const rows = boardData.outOfService || [];
+  const activeMembers = boardData.activeMembers || [];
+
+  table.innerHTML = "";
+
+  const headerRow = document.createElement("div");
+  headerRow.className = "out-service-row out-service-row--header";
+  ["Member", "Start", "Finish"].forEach((label) => {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    headerRow.appendChild(cell);
+  });
+  table.appendChild(headerRow);
+
+  function saveOutOfServiceValue(rowIndex, fieldName, value) {
+    const latestData = loadBoardData();
+    const nextRows = Array.from({ length: outOfServiceSlotCount }, (_, index) => ({
+      member: latestData.outOfService?.[index]?.member || "",
+      start: latestData.outOfService?.[index]?.start || "",
+      finish: latestData.outOfService?.[index]?.finish || ""
+    }));
+
+    nextRows[rowIndex][fieldName] = value;
+    saveBoardData({
+      ...latestData,
+      outOfService: nextRows
+    });
+  }
+
+  function toDateInputValue(value) {
+    const rawValue = String(value || "").trim();
+    if (rawValue.toUpperCase() === "UFN") {
+      return "";
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+      return rawValue;
+    }
+
+    const match = rawValue.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+    if (!match) {
+      return "";
+    }
+
+    const currentYear = new Date().getFullYear();
+    const rawYear = match[3] ? Number(match[3]) : currentYear;
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+    const month = String(Number(match[1])).padStart(2, "0");
+    const day = String(Number(match[2])).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function formatOutServiceDate(value) {
+    const rawValue = String(value || "").trim();
+    if (rawValue.toUpperCase() === "UFN") {
+      return "UFN";
+    }
+
+    const dateValue = toDateInputValue(rawValue);
+    if (!dateValue) {
+      return "";
+    }
+
+    const [, year, month, day] = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+    return year && month && day ? `${month}/${day}/${year.slice(-2)}` : "";
+  }
+
+  function normalizeOutServiceDate(value) {
+    const rawValue = String(value || "").trim();
+    if (!rawValue) {
+      return "";
+    }
+
+    if (rawValue.toUpperCase() === "UFN") {
+      return "UFN";
+    }
+
+    return toDateInputValue(rawValue);
+  }
+
+  function closeOutServiceDateMenu() {
+    if (activeOutServiceDateMenu) {
+      activeOutServiceDateMenu();
+    }
+  }
+
+  function openOutServiceDateMenu(anchor, rowIndex, fieldName, currentValue, onDisplayChange) {
+    closeOutServiceDateMenu();
+
+    const menu = document.createElement("div");
+    menu.className = "out-service-date-menu";
+
+    const picker = document.createElement("input");
+    picker.type = "date";
+    picker.className = "out-service-date-picker";
+    picker.value = toDateInputValue(currentValue);
+    menu.appendChild(picker);
+
+    const ufnButton = document.createElement("button");
+    ufnButton.type = "button";
+    ufnButton.className = "out-service-date-menu-option";
+    ufnButton.textContent = "UFN";
+    menu.appendChild(ufnButton);
+
+    document.body.appendChild(menu);
+
+    const rect = anchor.getBoundingClientRect();
+    const menuWidth = Math.max(170, rect.width + 58);
+    menu.style.left = `${Math.min(window.innerWidth - menuWidth - 4, Math.max(4, rect.left))}px`;
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.width = `${menuWidth}px`;
+
+    function closeMenu() {
+      menu.remove();
+      document.removeEventListener("mousedown", handleOutsideClick, true);
+      activeOutServiceDateMenu = null;
+    }
+
+    function handleOutsideClick(event) {
+      if (menu.contains(event.target) || anchor === event.target) {
+        return;
+      }
+      closeMenu();
+    }
+
+    activeOutServiceDateMenu = closeMenu;
+    document.addEventListener("mousedown", handleOutsideClick, true);
+
+    ufnButton.addEventListener("click", () => {
+      saveOutOfServiceValue(rowIndex, fieldName, "UFN");
+      onDisplayChange("UFN");
+      closeMenu();
+    });
+
+    picker.addEventListener("change", () => {
+      saveOutOfServiceValue(rowIndex, fieldName, picker.value);
+      onDisplayChange(formatOutServiceDate(picker.value));
+      closeMenu();
+    });
+
+    window.setTimeout(() => {
+      anchor.focus();
+      anchor.select();
+    }, 0);
+  }
+
+  for (let index = 0; index < outOfServiceSlotCount; index += 1) {
+    const rowData = rows[index] || {};
+    const row = document.createElement("div");
+    row.className = "out-service-row";
+
+    const memberCell = document.createElement("div");
+    const memberField = createSearchCombobox({
+      className: "out-service-input out-service-input--member",
+      options: activeMembers,
+      value: rowData.member || "",
+      ariaLabel: `out of service member ${index + 1}`,
+      onCommit: (value) => saveOutOfServiceValue(index, "member", value)
+    });
+    memberCell.appendChild(memberField.root);
+    row.appendChild(memberCell);
+
+    ["start", "finish"].forEach((fieldName) => {
+      const cell = document.createElement("div");
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "out-service-input out-service-input--date";
+      input.value = formatOutServiceDate(rowData[fieldName] || "");
+      input.placeholder = "";
+      input.setAttribute("aria-label", `out of service ${fieldName} ${index + 1}`);
+      input.addEventListener("click", () => {
+        input.select();
+        openOutServiceDateMenu(input, index, fieldName, rowData[fieldName] || "", (displayValue) => {
+          input.value = displayValue;
+          rowData[fieldName] = displayValue === "UFN" ? "UFN" : input.value;
+        });
+      });
+      input.addEventListener("focus", () => input.select());
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Backspace" || event.key === "Delete") {
+          event.preventDefault();
+          saveOutOfServiceValue(index, fieldName, "");
+          input.value = "";
+          rowData[fieldName] = "";
+          closeOutServiceDateMenu();
+        } else if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openOutServiceDateMenu(input, index, fieldName, rowData[fieldName] || "", (displayValue) => {
+            input.value = displayValue;
+            rowData[fieldName] = displayValue === "UFN" ? "UFN" : input.value;
+          });
+        } else if (event.key.toLowerCase() === "u") {
+          event.preventDefault();
+          saveOutOfServiceValue(index, fieldName, "UFN");
+          input.value = "UFN";
+          rowData[fieldName] = "UFN";
+          closeOutServiceDateMenu();
+        }
+      });
+      input.addEventListener("blur", () => {
+        const normalizedValue = normalizeOutServiceDate(input.value);
+        saveOutOfServiceValue(index, fieldName, normalizedValue);
+        rowData[fieldName] = normalizedValue;
+        input.value = formatOutServiceDate(normalizedValue);
+      });
+      cell.appendChild(input);
+      row.appendChild(cell);
+    });
+
+    table.appendChild(row);
+  }
+}
+
 function createDailySelect(kind, key, activeMembers, selectedValue, weeklyAssignments, allowedNames = null, colorMap = {}) {
   let options = [];
   if (kind === "name") {
@@ -622,19 +844,7 @@ function renderDailyCalendarBlock(dayDate, dayLabel, boardData, weeklyAssignment
       sideCell.className = "dc-side-cell";
       sideCell.rowSpan = slotCount + 1;
 
-      const contentWrap = document.createElement("div");
-      contentWrap.className = "dc-side-content";
-
-      const today = document.createElement("div");
-      today.className = "dc-side-cell--today";
-      today.textContent = dayLabel;
-      contentWrap.appendChild(today);
-
-      const date = document.createElement("div");
-      date.className = "dc-side-cell--date";
-      date.textContent = formatDisplayDate(dayDate);
-      contentWrap.appendChild(date);
-
+      const contentWrap = createCalendarSideContent(dayKey, dayLabel, formatDisplayDate(dayDate), boardData);
       sideCell.appendChild(contentWrap);
       tr.appendChild(sideCell);
     }
@@ -704,7 +914,7 @@ function renderDailyCalendar() {
   stack.innerHTML = "";
   for (let offset = 0; offset < 7; offset += 1) {
     const day = addDays(today, offset);
-    const label = offset === 0 ? "Today" : day.toLocaleDateString("en-US", { weekday: "long" });
+    const label = day.toLocaleDateString("en-US", { weekday: "long" });
     stack.appendChild(renderDailyCalendarBlock(day, label, boardData, weeklyAssignments));
   }
 }
@@ -715,6 +925,7 @@ async function initBoardPage() {
   }
   renderApparatusCards();
   populateBoardDropdowns();
+  renderOutOfServiceCard();
   renderDailyCalendar();
 }
 
@@ -728,6 +939,7 @@ let boardRefreshPending = false;
 function refreshBoardFromPersistence() {
   renderApparatusCards();
   populateBoardDropdowns();
+  renderOutOfServiceCard();
   renderDailyCalendar();
 }
 

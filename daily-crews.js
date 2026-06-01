@@ -33,46 +33,70 @@ const dailyCrewShifts = [
   { id: "d", label: "D Shift", rangeLabel: "1800 - 0000", hours: ["1800", "1900", "2000", "2100", "2200", "2300"] }
 ];
 
-const dailyCrewApparatus = [
-  {
-    id: "engine",
-    title: "Engine 13",
-    modifier: "daily-crews-unit--engine",
+const dailyCrewApparatusTypes = {
+  engine132: {
+    id: "engine132",
+    title: "Engine 13-2",
+    modifier: "apparatus-card--engine",
     positions: [
-      { id: "driver", label: "Driver", pool: "engineDriver" },
-      { id: "officer", label: "Officer", pool: "officer" },
-      { id: "nozzle", label: "Nozzle", pool: "nozzleBackupSupport" },
-      { id: "layout", label: "Layout", pool: "activeMembers" },
-      { id: "backup", label: "Backup", pool: "nozzleBackupSupport" },
-      { id: "support", label: "Support", pool: "nozzleBackupSupport" }
+      { id: "driver", label: "Driver", poolKey: "engineDriver" },
+      { id: "officer", label: "Officer", poolKey: "officer" },
+      { id: "nozzle", label: "Nozzle", poolKey: "nozzleBackupSupport" },
+      { id: "layout", label: "Layout", poolKey: "activeMembers" },
+      { id: "backup", label: "Backup", poolKey: "nozzleBackupSupport" },
+      { id: "support", label: "Support", poolKey: "nozzleBackupSupport" }
     ]
   },
-  {
-    id: "tower",
+  engine135: {
+    id: "engine135",
+    title: "Engine 13-5",
+    modifier: "apparatus-card--engine",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "engineDriver" },
+      { id: "officer", label: "Officer", poolKey: "officer" },
+      { id: "nozzle", label: "Nozzle", poolKey: "nozzleBackupSupport" },
+      { id: "layout", label: "Layout", poolKey: "activeMembers" },
+      { id: "backup", label: "Backup", poolKey: "nozzleBackupSupport" },
+      { id: "support", label: "Support", poolKey: "nozzleBackupSupport" }
+    ]
+  },
+  tower13: {
+    id: "tower13",
     title: "Tower 13",
-    modifier: "daily-crews-unit--tower",
+    modifier: "apparatus-card--tower",
     positions: [
-      { id: "driver", label: "Driver", pool: "towerDriver" },
-      { id: "officer", label: "Officer", pool: "officer" },
-      { id: "bar", label: "Bar", pool: "barCan" },
-      { id: "ovm", label: "OVM", pool: "ovm" },
-      { id: "can", label: "Can", pool: "barCan" },
-      { id: "roof", label: "Roof", pool: "roof" }
+      { id: "driver", label: "Driver", poolKey: "towerDriver" },
+      { id: "officer", label: "Officer", poolKey: "officer" },
+      { id: "bar", label: "Bar", poolKey: "barCan" },
+      { id: "ovm", label: "OVM", poolKey: "ovm" },
+      { id: "can", label: "Can", poolKey: "barCan" },
+      { id: "roof", label: "Roof", poolKey: "roof" }
     ]
   },
-  {
-    id: "rescue",
+  rescue13: {
+    id: "rescue13",
     title: "Rescue 13",
-    modifier: "daily-crews-unit--rescue",
+    modifier: "apparatus-card--rescue",
     positions: [
-      { id: "driver", label: "Driver", pool: "rescueDriver" },
-      { id: "officer", label: "Officer", pool: "officer" },
-      { id: "bar", label: "Bar", pool: "barCan" },
-      { id: "ovm", label: "OVM", pool: "ovm" },
-      { id: "can", label: "Can", pool: "barCan" },
-      { id: "roof", label: "Roof", pool: "roof" }
+      { id: "driver", label: "Driver", poolKey: "rescueDriver" },
+      { id: "officer", label: "Officer", poolKey: "officer" },
+      { id: "bar", label: "Bar", poolKey: "barCan" },
+      { id: "ovm", label: "OVM", poolKey: "ovm" },
+      { id: "can", label: "Can", poolKey: "barCan" },
+      { id: "roof", label: "Roof", poolKey: "roof" }
     ]
   }
+};
+
+const dailyCrewApparatusOptions = Object.values(dailyCrewApparatusTypes).map((apparatus) => apparatus.title);
+const dailyCrewApparatusLabelToId = Object.fromEntries(
+  Object.values(dailyCrewApparatusTypes).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
+);
+
+const dailyCrewApparatusSlots = [
+  { id: "engine", defaultType: "engine132" },
+  { id: "tower", defaultType: "tower13" },
+  { id: "rescue", defaultType: "rescue13" }
 ];
 
 function loadDailyCrewsData() {
@@ -164,6 +188,11 @@ function applyDailyCrewFill(select, colorMap) {
   select.style.color = textColor || "";
 }
 
+function getDailyCrewApparatusType(savedData, shiftId, hour, slot) {
+  const savedType = savedData[`${shiftId}-${hour}-${slot.id}-apparatus`];
+  return dailyCrewApparatusTypes[savedType] ? savedType : slot.defaultType;
+}
+
 function applyDailyCrewsStatusColor(select) {
   if (select.dataset.kind !== "crew") {
     return;
@@ -204,21 +233,22 @@ function createDailyCrewsMirrorValue(kind, rawValue, colorMap = {}) {
   return node;
 }
 
-function buildDailyCrewCell(boardData, savedData, shiftId, hour, apparatus, position) {
+function buildDailyCrewCell(boardData, savedData, shiftId, hour, slot, position) {
   const row = document.createElement("div");
-  row.className = "daily-crews-row";
+  row.className = "daily-crews-row seat-row";
 
   const label = document.createElement("span");
-  label.className = "daily-crews-role";
+  label.className = "daily-crews-role seat-role";
   label.textContent = position.label;
   row.appendChild(label);
 
-  const key = `${shiftId}-${hour}-${apparatus.id}-${position.id}`;
-  const pool = uniqueNames(getDailyCrewPool(boardData, position.pool));
-  const colorMap = getDailyCrewColorMap(boardData, position.pool);
+  const key = `${shiftId}-${hour}-${slot.id}-${position.id}`;
+  const poolKey = position.poolKey || position.pool;
+  const pool = uniqueNames(getDailyCrewPool(boardData, poolKey));
+  const colorMap = getDailyCrewColorMap(boardData, poolKey);
   const selectedValue = pool.includes(savedData[key]) ? savedData[key] : "";
   const field = createSearchCombobox({
-    className: "daily-crews-select",
+    className: "daily-crews-select seat-input",
     options: pool,
     value: selectedValue,
     ariaLabel: key,
@@ -238,19 +268,38 @@ function buildDailyCrewCell(boardData, savedData, shiftId, hour, apparatus, posi
   return row;
 }
 
-function buildDailyCrewUnit(boardData, savedData, shiftId, hour, apparatus) {
+function buildDailyCrewUnit(boardData, savedData, shiftId, hour, slot) {
+  const typeId = getDailyCrewApparatusType(savedData, shiftId, hour, slot);
+  const apparatus = dailyCrewApparatusTypes[typeId] || dailyCrewApparatusTypes[slot.defaultType];
   const unit = document.createElement("article");
-  unit.className = `daily-crews-unit ${apparatus.modifier}`;
+  unit.className = `daily-crews-unit apparatus-card ${apparatus.modifier}`;
 
-  const header = document.createElement("div");
-  header.className = "daily-crews-unit-header";
-  header.textContent = apparatus.title;
+  const header = document.createElement("header");
+  header.className = "daily-crews-unit-header apparatus-header";
+  const typeKey = `${shiftId}-${hour}-${slot.id}-apparatus`;
+  const headerField = createSearchCombobox({
+    className: "apparatus-header-input daily-crews-unit-header-input",
+    options: dailyCrewApparatusOptions,
+    value: apparatus.title,
+    ariaLabel: `${shiftId} ${hour} ${slot.id} apparatus`,
+    onCommit: (value, input) => {
+      const chosenType = dailyCrewApparatusLabelToId[String(value || "").toLowerCase()] || typeId;
+      input.value = dailyCrewApparatusTypes[chosenType].title;
+      if (chosenType === typeId) {
+        return;
+      }
+      savedData[typeKey] = chosenType;
+      saveDailyCrewsData(savedData);
+      renderDailyCrewsPage();
+    }
+  });
+  header.appendChild(headerField.root);
   unit.appendChild(header);
 
   const body = document.createElement("div");
-  body.className = "daily-crews-unit-body";
+  body.className = "daily-crews-unit-body seat-list";
   apparatus.positions.forEach((position) => {
-    body.appendChild(buildDailyCrewCell(boardData, savedData, shiftId, hour, apparatus, position));
+    body.appendChild(buildDailyCrewCell(boardData, savedData, shiftId, hour, slot, position));
   });
   unit.appendChild(body);
 
@@ -266,8 +315,8 @@ function buildDailyCrewHour(boardData, savedData, shiftId, hour) {
   time.textContent = hour;
   column.appendChild(time);
 
-  dailyCrewApparatus.forEach((apparatus) => {
-    column.appendChild(buildDailyCrewUnit(boardData, savedData, shiftId, hour, apparatus));
+  dailyCrewApparatusSlots.forEach((slot) => {
+    column.appendChild(buildDailyCrewUnit(boardData, savedData, shiftId, hour, slot));
   });
 
   return column;
@@ -366,7 +415,7 @@ function buildDailyCrewsShiftMirror(boardData, shift, assignments) {
   wrap.className = "daily-crews-summary-grid";
 
   wrap.appendChild(buildDailyCrewsShiftMirrorPanel(boardData, shift, assignments, getDailyCrewsDateKey(0), "Today"));
-  wrap.appendChild(buildDailyCrewsShiftMirrorPanel(boardData, shift, assignments, getDailyCrewsDateKey(1), "+1 Day"));
+  wrap.appendChild(buildDailyCrewsShiftMirrorPanel(boardData, shift, assignments, getDailyCrewsDateKey(1), "Tomorrow"));
 
   return wrap;
 }

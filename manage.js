@@ -10,6 +10,7 @@ const fields = {
   roof: document.getElementById("roofInput"),
   command13: document.getElementById("command13Input"),
   colorTags: document.getElementById("colorTagsInput"),
+  calendarTags: document.getElementById("calendarTagsInput"),
   liveIns: document.getElementById("liveInsInput")
 };
 
@@ -31,11 +32,13 @@ function writeListsToForm(boardData) {
   fields.roof.value = formatNameColorList(boardData.rolePools.roof, colorRules.roof || {}, tagRules.roof || {});
   fields.command13.value = formatNameColorList(boardData.command13Members || [], colorRules.command13 || {}, tagRules.command13 || {});
   fields.colorTags.value = formatColorTagList(boardData.colorTags || {});
+  fields.calendarTags.value = formatColorTagList(boardData.calendarTags || {});
   fields.liveIns.value = (boardData.liveIns || []).join("\n");
 }
 
 function readListsFromForm() {
   const colorTags = parseColorTagList(fields.colorTags.value);
+  const calendarTags = parseColorTagList(fields.calendarTags.value);
   const activeMemberData = parseNameColorList(fields.activeMembers.value, colorTags);
   const engineDriverData = parseNameColorList(fields.engineDriver.value, colorTags);
   const rescueDriverData = parseNameColorList(fields.rescueDriver.value, colorTags);
@@ -50,6 +53,7 @@ function readListsFromForm() {
   return {
     activeMembers: activeMemberData.names,
     colorTags,
+    calendarTags,
     rolePools: {
       engineDriver: engineDriverData.names,
       rescueDriver: rescueDriverData.names,
