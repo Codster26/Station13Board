@@ -22,6 +22,18 @@ const DEFAULT_SHIFT_STATUS_COLORS = {
   "Live Burn": "#753800",
   "Cover": "#0a53a8"
 };
+const DEFAULT_APPARATUS_OPTIONS = [
+  "Engine 13-2",
+  "Engine 13-5",
+  "Tower 13",
+  "Rescue 13"
+];
+const DEFAULT_APPARATUS_COLORS = {
+  "Engine 13-2": "#c90f13",
+  "Engine 13-5": "#c90f13",
+  "Tower 13": "#4f812e",
+  "Rescue 13": "#1f5b87"
+};
 
 const DEFAULT_BOARD_DATA = {
   colorRulesVersion: 2,
@@ -556,6 +568,8 @@ const DEFAULT_BOARD_DATA = {
     "Live Burn": "#ffc8aa"
   },
   calendarNotes: {},
+  apparatusOptions: DEFAULT_APPARATUS_OPTIONS,
+  apparatusColors: DEFAULT_APPARATUS_COLORS,
   shiftStatuses: DEFAULT_SHIFT_STATUSES,
   shiftStatusColors: DEFAULT_SHIFT_STATUS_COLORS,
   colorRules: {
@@ -586,6 +600,13 @@ const DEFAULT_BOARD_DATA = {
   assignments: {}
 };
 
+DEFAULT_BOARD_DATA.rolePools.engine = DEFAULT_BOARD_DATA.rolePools.nozzleBackupSupport;
+DEFAULT_BOARD_DATA.rolePools.truck = DEFAULT_BOARD_DATA.rolePools.barCan;
+DEFAULT_BOARD_DATA.colorRules.engine = {};
+DEFAULT_BOARD_DATA.colorRules.truck = {};
+DEFAULT_BOARD_DATA.tagRules.engine = {};
+DEFAULT_BOARD_DATA.tagRules.truck = {};
+
 function uniqueNames(names) {
   const seen = new Set();
   const result = [];
@@ -608,6 +629,12 @@ function mergeWithDefaults(stored) {
   const legacyBarPool = stored?.rolePools?.barOvmCanRoof || DEFAULT_BOARD_DATA.rolePools.barCan;
   const legacyBarColors = stored?.colorRules?.barOvmCanRoof || {};
   const legacyBarTags = stored?.tagRules?.barOvmCanRoof || {};
+  const legacyEnginePool = stored?.rolePools?.engine || stored?.rolePools?.nozzleBackupSupport || DEFAULT_BOARD_DATA.rolePools.engine;
+  const legacyTruckPool = stored?.rolePools?.truck || stored?.rolePools?.barCan || legacyBarPool;
+  const legacyEngineColors = stored?.colorRules?.engine || stored?.colorRules?.nozzleBackupSupport || {};
+  const legacyTruckColors = stored?.colorRules?.truck || stored?.colorRules?.barCan || stored?.colorRules?.roof || legacyBarColors;
+  const legacyEngineTags = stored?.tagRules?.engine || stored?.tagRules?.nozzleBackupSupport || {};
+  const legacyTruckTags = stored?.tagRules?.truck || stored?.tagRules?.barCan || stored?.tagRules?.roof || legacyBarTags;
 
   return {
     colorRulesVersion: DEFAULT_BOARD_DATA.colorRulesVersion,
@@ -617,10 +644,12 @@ function mergeWithDefaults(stored) {
       rescueDriver: uniqueNames(stored?.rolePools?.rescueDriver || DEFAULT_BOARD_DATA.rolePools.rescueDriver),
       towerDriver: uniqueNames(stored?.rolePools?.towerDriver || DEFAULT_BOARD_DATA.rolePools.towerDriver),
       officer: uniqueNames(stored?.rolePools?.officer || DEFAULT_BOARD_DATA.rolePools.officer),
-      nozzleBackupSupport: uniqueNames(stored?.rolePools?.nozzleBackupSupport || DEFAULT_BOARD_DATA.rolePools.nozzleBackupSupport),
-      barCan: uniqueNames(stored?.rolePools?.barCan || legacyBarPool),
+      engine: uniqueNames(legacyEnginePool),
+      truck: uniqueNames(legacyTruckPool),
+      nozzleBackupSupport: uniqueNames(legacyEnginePool),
+      barCan: uniqueNames(legacyTruckPool),
       ovm: uniqueNames(stored?.rolePools?.ovm || DEFAULT_BOARD_DATA.activeMembers),
-      roof: uniqueNames(stored?.rolePools?.roof || DEFAULT_BOARD_DATA.activeMembers)
+      roof: uniqueNames(legacyTruckPool)
     },
     command13Members: uniqueNames(stored?.command13Members || DEFAULT_BOARD_DATA.command13Members),
     outOfService: Array.from({ length: 10 }, (_, index) => {
@@ -635,6 +664,8 @@ function mergeWithDefaults(stored) {
     colorTags: { ...(stored?.colorTags || DEFAULT_BOARD_DATA.colorTags) },
     calendarTags: { ...(stored?.calendarTags || DEFAULT_BOARD_DATA.calendarTags) },
     calendarNotes: { ...(stored?.calendarNotes || DEFAULT_BOARD_DATA.calendarNotes) },
+    apparatusOptions: uniqueNames(stored?.apparatusOptions || DEFAULT_BOARD_DATA.apparatusOptions),
+    apparatusColors: { ...DEFAULT_APPARATUS_COLORS, ...(stored?.apparatusColors || {}) },
     shiftStatuses: uniqueNames(stored?.shiftStatuses || DEFAULT_BOARD_DATA.shiftStatuses),
     shiftStatusColors: { ...(stored?.shiftStatusColors || DEFAULT_BOARD_DATA.shiftStatusColors) },
     colorRules: {
@@ -643,10 +674,12 @@ function mergeWithDefaults(stored) {
       rescueDriver: { ...(stored?.colorRules?.rescueDriver || {}) },
       towerDriver: { ...(stored?.colorRules?.towerDriver || {}) },
       officer: { ...(stored?.colorRules?.officer || {}) },
-      nozzleBackupSupport: { ...(stored?.colorRules?.nozzleBackupSupport || {}) },
-      barCan: { ...(stored?.colorRules?.barCan || legacyBarColors) },
+      engine: { ...legacyEngineColors },
+      truck: { ...legacyTruckColors },
+      nozzleBackupSupport: { ...legacyEngineColors },
+      barCan: { ...legacyTruckColors },
       ovm: { ...(stored?.colorRules?.ovm || legacyBarColors) },
-      roof: { ...(stored?.colorRules?.roof || legacyBarColors) },
+      roof: { ...legacyTruckColors },
       command13: { ...(stored?.colorRules?.command13 || {}) },
       liveIns: { ...(stored?.colorRules?.liveIns || {}) }
     },
@@ -656,10 +689,12 @@ function mergeWithDefaults(stored) {
       rescueDriver: { ...(stored?.tagRules?.rescueDriver || {}) },
       towerDriver: { ...(stored?.tagRules?.towerDriver || {}) },
       officer: { ...(stored?.tagRules?.officer || {}) },
-      nozzleBackupSupport: { ...(stored?.tagRules?.nozzleBackupSupport || {}) },
-      barCan: { ...(stored?.tagRules?.barCan || legacyBarTags) },
+      engine: { ...legacyEngineTags },
+      truck: { ...legacyTruckTags },
+      nozzleBackupSupport: { ...legacyEngineTags },
+      barCan: { ...legacyTruckTags },
       ovm: { ...(stored?.tagRules?.ovm || legacyBarTags) },
-      roof: { ...(stored?.tagRules?.roof || legacyBarTags) },
+      roof: { ...legacyTruckTags },
       command13: { ...(stored?.tagRules?.command13 || {}) }
     },
     assignments: { ...(stored?.assignments || {}) }
@@ -809,6 +844,35 @@ function formatShiftStatusList(statuses, colorMap = {}) {
       return color ? `${status} - ${color}` : status;
     })
     .join("\n");
+}
+
+function parseApparatusList(text) {
+  const parsed = parseNameColorList(text);
+  return {
+    options: parsed.names,
+    colors: parsed.colors
+  };
+}
+
+function formatApparatusList(options, colorMap = {}) {
+  return (options || [])
+    .map((apparatus) => {
+      const color = colorMap?.[apparatus];
+      return color ? `${apparatus} - ${color}` : apparatus;
+    })
+    .join("\n");
+}
+
+function getApparatusOptions(boardData = loadBoardData()) {
+  const options = uniqueNames(boardData?.apparatusOptions || DEFAULT_APPARATUS_OPTIONS);
+  return options.length ? options : DEFAULT_APPARATUS_OPTIONS;
+}
+
+function getApparatusColors(boardData = loadBoardData()) {
+  return {
+    ...DEFAULT_APPARATUS_COLORS,
+    ...(boardData?.apparatusColors || {})
+  };
 }
 
 function applyCalendarTagFill(select, boardData) {

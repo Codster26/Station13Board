@@ -42,6 +42,26 @@ const DAILY_CREW_APPARATUS_TYPES = {
 };
 const DAILY_CREW_ALL_POSITIONS = Array.from(new Set(Object.values(DAILY_CREW_APPARATUS_TYPES).flat()));
 
+function getDailyCrewApparatusBaseType(typeId, fallbackType = "engine132") {
+  const normalized = String(typeId || "");
+  if (DAILY_CREW_APPARATUS_TYPES[normalized]) {
+    return normalized;
+  }
+  if (normalized.startsWith("tower13-custom-")) {
+    return "tower13";
+  }
+  if (normalized.startsWith("rescue13-custom-")) {
+    return "rescue13";
+  }
+  if (normalized.startsWith("engine135-custom-")) {
+    return "engine135";
+  }
+  if (normalized.startsWith("engine132-custom-")) {
+    return "engine132";
+  }
+  return DAILY_CREW_APPARATUS_TYPES[fallbackType] ? fallbackType : "engine132";
+}
+
 function getDatePartsInTimeZone(date, timeZone = TIME_ZONE) {
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -868,8 +888,8 @@ function applyDailyCrewHourToRidingBoard(state, dateKey, hourLabel) {
 
   DAILY_CREW_APPARATUS_SLOTS.forEach((slot) => {
     const sourceType = dailyCrewsData[`${shift.id}-${hourLabel}-${slot.sourceId}-apparatus`] || slot.defaultType;
-    const apparatusType = DAILY_CREW_APPARATUS_TYPES[sourceType] ? sourceType : slot.defaultType;
-    apparatusSlots[slot.targetId] = apparatusType;
+    const apparatusType = getDailyCrewApparatusBaseType(sourceType, slot.defaultType);
+    apparatusSlots[slot.targetId] = sourceType || apparatusType;
 
     DAILY_CREW_ALL_POSITIONS.forEach((positionId) => {
       delete assignments[`rig-${slot.targetId}-${positionId}`];

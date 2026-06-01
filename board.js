@@ -5,17 +5,17 @@ const seatPoolMap = {
   "engine-officer": "officer",
   "tower-officer": "officer",
   "rescue-officer": "officer",
-  "engine-nozzle": "nozzleBackupSupport",
-  "engine-backup": "nozzleBackupSupport",
-  "engine-support": "nozzleBackupSupport",
-  "tower-bar": "barCan",
+  "engine-nozzle": "engine",
+  "engine-backup": "engine",
+  "engine-support": "engine",
+  "tower-bar": "truck",
   "tower-ovm": "ovm",
-  "tower-can": "barCan",
-  "tower-roof": "roof",
-  "rescue-bar": "barCan",
+  "tower-can": "truck",
+  "tower-roof": "truck",
+  "rescue-bar": "truck",
   "rescue-ovm": "ovm",
-  "rescue-can": "barCan",
-  "rescue-roof": "roof",
+  "rescue-can": "truck",
+  "rescue-roof": "truck",
   "command-vehicle": "command13",
   "command-2": "command13"
 };
@@ -29,7 +29,7 @@ const shiftConfigs = [
 
 const APPARATUS_SLOT_IDS = ["slot1", "slot2", "slot3"];
 
-const APPARATUS_TYPES = {
+const APPARATUS_BASE_TYPES = {
   engine132: {
     id: "engine132",
     title: "Engine 13-2",
@@ -37,10 +37,10 @@ const APPARATUS_TYPES = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "engineDriver", fallback: "Kline, A." },
       { id: "officer", label: "Officer", poolKey: "officer", fallback: "May, J." },
-      { id: "nozzle", label: "Nozzle", poolKey: "nozzleBackupSupport", fallback: "Stamp, N." },
-      { id: "layout", label: "Layout", poolKey: "activeMembers", fallback: "Ryen, R." },
-      { id: "backup", label: "Backup", poolKey: "nozzleBackupSupport", fallback: "Greipp, R." },
-      { id: "support", label: "Support", poolKey: "nozzleBackupSupport", fallback: "Ride A Long" }
+      { id: "nozzle", label: "Nozzle", poolKey: "engine", fallback: "Stamp, N." },
+      { id: "layout", label: "Layout", poolKey: "engine", fallback: "Ryen, R." },
+      { id: "backup", label: "Backup", poolKey: "engine", fallback: "Greipp, R." },
+      { id: "support", label: "Support", poolKey: "engine", fallback: "Ride A Long" }
     ]
   },
   engine135: {
@@ -50,10 +50,10 @@ const APPARATUS_TYPES = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "engineDriver", fallback: OPEN_ASSIGNMENT },
       { id: "officer", label: "Officer", poolKey: "officer", fallback: OPEN_ASSIGNMENT },
-      { id: "nozzle", label: "Nozzle", poolKey: "nozzleBackupSupport", fallback: OPEN_ASSIGNMENT },
-      { id: "layout", label: "Layout", poolKey: "activeMembers", fallback: OPEN_ASSIGNMENT },
-      { id: "backup", label: "Backup", poolKey: "nozzleBackupSupport", fallback: OPEN_ASSIGNMENT },
-      { id: "support", label: "Support", poolKey: "nozzleBackupSupport", fallback: OPEN_ASSIGNMENT }
+      { id: "nozzle", label: "Nozzle", poolKey: "engine", fallback: OPEN_ASSIGNMENT },
+      { id: "layout", label: "Layout", poolKey: "engine", fallback: OPEN_ASSIGNMENT },
+      { id: "backup", label: "Backup", poolKey: "engine", fallback: OPEN_ASSIGNMENT },
+      { id: "support", label: "Support", poolKey: "engine", fallback: OPEN_ASSIGNMENT }
     ]
   },
   tower13: {
@@ -63,10 +63,10 @@ const APPARATUS_TYPES = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "towerDriver", fallback: "MacCormac, W." },
       { id: "officer", label: "Officer", poolKey: "officer", fallback: "Tanler, K." },
-      { id: "bar", label: "Bar", poolKey: "barCan", fallback: "Delvalle, J." },
+      { id: "bar", label: "Bar", poolKey: "truck", fallback: "Delvalle, J." },
       { id: "ovm", label: "OVM", poolKey: "ovm", fallback: "Newton, C." },
-      { id: "can", label: "Can", poolKey: "barCan", fallback: OPEN_ASSIGNMENT },
-      { id: "roof", label: "Roof", poolKey: "roof", fallback: OPEN_ASSIGNMENT }
+      { id: "can", label: "Can", poolKey: "truck", fallback: OPEN_ASSIGNMENT },
+      { id: "roof", label: "Roof", poolKey: "truck", fallback: OPEN_ASSIGNMENT }
     ]
   },
   rescue13: {
@@ -76,18 +76,70 @@ const APPARATUS_TYPES = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "rescueDriver", fallback: OPEN_ASSIGNMENT },
       { id: "officer", label: "Officer", poolKey: "officer", fallback: OPEN_ASSIGNMENT },
-      { id: "bar", label: "Bar", poolKey: "barCan", fallback: OPEN_ASSIGNMENT },
+      { id: "bar", label: "Bar", poolKey: "truck", fallback: OPEN_ASSIGNMENT },
       { id: "ovm", label: "OVM", poolKey: "ovm", fallback: OPEN_ASSIGNMENT },
-      { id: "can", label: "Can", poolKey: "barCan", fallback: OPEN_ASSIGNMENT },
-      { id: "roof", label: "Roof", poolKey: "roof", fallback: OPEN_ASSIGNMENT }
+      { id: "can", label: "Can", poolKey: "truck", fallback: OPEN_ASSIGNMENT },
+      { id: "roof", label: "Roof", poolKey: "truck", fallback: OPEN_ASSIGNMENT }
     ]
   }
 };
 
-const APPARATUS_OPTIONS = Object.values(APPARATUS_TYPES).map((apparatus) => apparatus.title);
-const APPARATUS_LABEL_TO_ID = Object.fromEntries(
-  Object.values(APPARATUS_TYPES).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
+const KNOWN_APPARATUS_LABEL_TO_ID = Object.fromEntries(
+  Object.values(APPARATUS_BASE_TYPES).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
 );
+
+function slugApparatusTitle(title) {
+  return String(title || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function inferApparatusBaseId(title) {
+  const normalized = String(title || "").toLowerCase();
+  if (normalized.includes("tower") || normalized.includes("truck") || normalized.includes("ladder")) {
+    return "tower13";
+  }
+  if (normalized.includes("rescue") || normalized.includes("squad")) {
+    return "rescue13";
+  }
+  return "engine132";
+}
+
+function getManagedApparatusTypes(boardData) {
+  const colors = getApparatusColors(boardData);
+  const managedTypes = {};
+
+  getApparatusOptions(boardData).forEach((title) => {
+    const knownId = KNOWN_APPARATUS_LABEL_TO_ID[String(title).toLowerCase()];
+    const baseId = knownId || inferApparatusBaseId(title);
+    const id = knownId || `${baseId}-custom-${slugApparatusTitle(title)}`;
+    managedTypes[id] = {
+      ...APPARATUS_BASE_TYPES[baseId],
+      id,
+      title,
+      color: colors[title] || colors[APPARATUS_BASE_TYPES[baseId].title]
+    };
+  });
+
+  Object.entries(APPARATUS_BASE_TYPES).forEach(([id, apparatus]) => {
+    if (!managedTypes[id]) {
+      managedTypes[id] = {
+        ...apparatus,
+        color: colors[apparatus.title]
+      };
+    }
+  });
+
+  return managedTypes;
+}
+
+function getApparatusLabelToId(apparatusTypes) {
+  return Object.fromEntries(
+    Object.values(apparatusTypes).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
+  );
+}
 
 const slotCount = 15;
 const outOfServiceSlotCount = 10;
@@ -101,7 +153,8 @@ function getPoolForSeat(boardData, seatId) {
   if (seatId.startsWith("rig-")) {
     const [, slotId, positionId] = seatId.split("-");
     const apparatusSlots = getApparatusSlots(boardData);
-    const apparatusType = APPARATUS_TYPES[apparatusSlots[slotId]];
+    const apparatusTypes = getManagedApparatusTypes(boardData);
+    const apparatusType = apparatusTypes[apparatusSlots[slotId]] || apparatusTypes.engine132;
     const position = apparatusType?.positions.find((item) => item.id === positionId);
     const poolKey = position?.poolKey;
 
@@ -134,7 +187,8 @@ function getSeatPoolKey(boardData, seatId) {
   if (seatId.startsWith("rig-")) {
     const [, slotId, positionId] = seatId.split("-");
     const apparatusSlots = getApparatusSlots(boardData);
-    const apparatusType = APPARATUS_TYPES[apparatusSlots[slotId]];
+    const apparatusTypes = getManagedApparatusTypes(boardData);
+    const apparatusType = apparatusTypes[apparatusSlots[slotId]] || apparatusTypes.engine132;
     const position = apparatusType?.positions.find((item) => item.id === positionId);
     return position?.poolKey || "activeMembers";
   }
@@ -146,7 +200,8 @@ function getFallbackForSeat(boardData, seatId, fallbackValue = OPEN_ASSIGNMENT) 
   if (seatId.startsWith("rig-")) {
     const [, slotId, positionId] = seatId.split("-");
     const apparatusSlots = getApparatusSlots(boardData);
-    const apparatusType = APPARATUS_TYPES[apparatusSlots[slotId]];
+    const apparatusTypes = getManagedApparatusTypes(boardData);
+    const apparatusType = apparatusTypes[apparatusSlots[slotId]] || apparatusTypes.engine132;
     const position = apparatusType?.positions.find((item) => item.id === positionId);
     return position?.fallback || OPEN_ASSIGNMENT;
   }
@@ -279,27 +334,33 @@ function renderApparatusCards() {
 
   const boardData = migrateLegacyApparatusAssignments(loadBoardData());
   const apparatusSlots = getApparatusSlots(boardData);
+  const apparatusTypes = getManagedApparatusTypes(boardData);
+  const apparatusOptions = getApparatusOptions(boardData);
+  const apparatusLabelToId = getApparatusLabelToId(apparatusTypes);
 
   grid.innerHTML = "";
 
   APPARATUS_SLOT_IDS.forEach((slotId) => {
     const apparatusId = apparatusSlots[slotId];
-    const apparatus = APPARATUS_TYPES[apparatusId] || APPARATUS_TYPES.engine132;
+    const apparatus = apparatusTypes[apparatusId] || apparatusTypes.engine132;
 
     const card = document.createElement("article");
     card.className = `apparatus-card ${apparatus.modifier}`;
 
     const header = document.createElement("header");
     header.className = "apparatus-header";
+    if (apparatus.color) {
+      header.style.background = apparatus.color;
+    }
     const headerField = createSearchCombobox({
       className: "apparatus-header-input",
-      options: APPARATUS_OPTIONS,
+      options: apparatusOptions,
       value: apparatus.title,
       ariaLabel: `${slotId} apparatus`,
       onCommit: (value, input) => {
-        const chosenId = APPARATUS_LABEL_TO_ID[String(value || "").toLowerCase()];
-        const nextId = chosenId || apparatusId;
-        input.value = APPARATUS_TYPES[nextId].title;
+        const chosenId = apparatusLabelToId[String(value || "").toLowerCase()];
+        const nextId = chosenId || apparatus.id;
+        input.value = apparatusTypes[nextId].title;
         if (nextId === apparatusId) {
           return;
         }

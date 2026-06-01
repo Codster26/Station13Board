@@ -9,7 +9,7 @@ const dailyCrewShifts = [
   { id: "d", label: "D Shift", rangeLabel: "1800 - 0000", hours: ["1800", "1900", "2000", "2100", "2200", "2300"] }
 ];
 
-const dailyCrewApparatusTypes = {
+const dailyCrewBaseApparatusTypes = {
   engine132: {
     id: "engine132",
     title: "Engine 13-2",
@@ -17,10 +17,10 @@ const dailyCrewApparatusTypes = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "engineDriver" },
       { id: "officer", label: "Officer", poolKey: "officer" },
-      { id: "nozzle", label: "Nozzle", poolKey: "nozzleBackupSupport" },
-      { id: "layout", label: "Layout", poolKey: "activeMembers" },
-      { id: "backup", label: "Backup", poolKey: "nozzleBackupSupport" },
-      { id: "support", label: "Support", poolKey: "nozzleBackupSupport" }
+      { id: "nozzle", label: "Nozzle", poolKey: "engine" },
+      { id: "layout", label: "Layout", poolKey: "engine" },
+      { id: "backup", label: "Backup", poolKey: "engine" },
+      { id: "support", label: "Support", poolKey: "engine" }
     ]
   },
   engine135: {
@@ -30,10 +30,10 @@ const dailyCrewApparatusTypes = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "engineDriver" },
       { id: "officer", label: "Officer", poolKey: "officer" },
-      { id: "nozzle", label: "Nozzle", poolKey: "nozzleBackupSupport" },
-      { id: "layout", label: "Layout", poolKey: "activeMembers" },
-      { id: "backup", label: "Backup", poolKey: "nozzleBackupSupport" },
-      { id: "support", label: "Support", poolKey: "nozzleBackupSupport" }
+      { id: "nozzle", label: "Nozzle", poolKey: "engine" },
+      { id: "layout", label: "Layout", poolKey: "engine" },
+      { id: "backup", label: "Backup", poolKey: "engine" },
+      { id: "support", label: "Support", poolKey: "engine" }
     ]
   },
   tower13: {
@@ -43,10 +43,10 @@ const dailyCrewApparatusTypes = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "towerDriver" },
       { id: "officer", label: "Officer", poolKey: "officer" },
-      { id: "bar", label: "Bar", poolKey: "barCan" },
+      { id: "bar", label: "Bar", poolKey: "truck" },
       { id: "ovm", label: "OVM", poolKey: "ovm" },
-      { id: "can", label: "Can", poolKey: "barCan" },
-      { id: "roof", label: "Roof", poolKey: "roof" }
+      { id: "can", label: "Can", poolKey: "truck" },
+      { id: "roof", label: "Roof", poolKey: "truck" }
     ]
   },
   rescue13: {
@@ -56,18 +56,70 @@ const dailyCrewApparatusTypes = {
     positions: [
       { id: "driver", label: "Driver", poolKey: "rescueDriver" },
       { id: "officer", label: "Officer", poolKey: "officer" },
-      { id: "bar", label: "Bar", poolKey: "barCan" },
+      { id: "bar", label: "Bar", poolKey: "truck" },
       { id: "ovm", label: "OVM", poolKey: "ovm" },
-      { id: "can", label: "Can", poolKey: "barCan" },
-      { id: "roof", label: "Roof", poolKey: "roof" }
+      { id: "can", label: "Can", poolKey: "truck" },
+      { id: "roof", label: "Roof", poolKey: "truck" }
     ]
   }
 };
 
-const dailyCrewApparatusOptions = Object.values(dailyCrewApparatusTypes).map((apparatus) => apparatus.title);
-const dailyCrewApparatusLabelToId = Object.fromEntries(
-  Object.values(dailyCrewApparatusTypes).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
+const knownDailyCrewApparatusLabelToId = Object.fromEntries(
+  Object.values(dailyCrewBaseApparatusTypes).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
 );
+
+function slugDailyCrewApparatusTitle(title) {
+  return String(title || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function inferDailyCrewBaseApparatusId(title) {
+  const normalized = String(title || "").toLowerCase();
+  if (normalized.includes("tower") || normalized.includes("truck") || normalized.includes("ladder")) {
+    return "tower13";
+  }
+  if (normalized.includes("rescue") || normalized.includes("squad")) {
+    return "rescue13";
+  }
+  return "engine132";
+}
+
+function getDailyCrewManagedApparatusTypes(boardData) {
+  const colors = getApparatusColors(boardData);
+  const managedTypes = {};
+
+  getApparatusOptions(boardData).forEach((title) => {
+    const knownId = knownDailyCrewApparatusLabelToId[String(title).toLowerCase()];
+    const baseId = knownId || inferDailyCrewBaseApparatusId(title);
+    const id = knownId || `${baseId}-custom-${slugDailyCrewApparatusTitle(title)}`;
+    managedTypes[id] = {
+      ...dailyCrewBaseApparatusTypes[baseId],
+      id,
+      title,
+      color: colors[title] || colors[dailyCrewBaseApparatusTypes[baseId].title]
+    };
+  });
+
+  Object.entries(dailyCrewBaseApparatusTypes).forEach(([id, apparatus]) => {
+    if (!managedTypes[id]) {
+      managedTypes[id] = {
+        ...apparatus,
+        color: colors[apparatus.title]
+      };
+    }
+  });
+
+  return managedTypes;
+}
+
+function getDailyCrewApparatusLabelToId(apparatusTypes) {
+  return Object.fromEntries(
+    Object.values(apparatusTypes).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
+  );
+}
 
 const dailyCrewApparatusSlots = [
   { id: "engine", defaultType: "engine132" },
@@ -164,9 +216,9 @@ function applyDailyCrewFill(select, colorMap) {
   select.style.color = textColor || "";
 }
 
-function getDailyCrewApparatusType(savedData, shiftId, hour, slot) {
+function getDailyCrewApparatusType(savedData, shiftId, hour, slot, apparatusTypes) {
   const savedType = savedData[`${shiftId}-${hour}-${slot.id}-apparatus`];
-  return dailyCrewApparatusTypes[savedType] ? savedType : slot.defaultType;
+  return apparatusTypes[savedType] ? savedType : slot.defaultType;
 }
 
 function applyDailyCrewsStatusColor(select) {
@@ -245,26 +297,33 @@ function buildDailyCrewCell(boardData, savedData, shiftId, hour, slot, position)
 }
 
 function buildDailyCrewUnit(boardData, savedData, shiftId, hour, slot) {
-  const typeId = getDailyCrewApparatusType(savedData, shiftId, hour, slot);
-  const apparatus = dailyCrewApparatusTypes[typeId] || dailyCrewApparatusTypes[slot.defaultType];
+  const apparatusTypes = getDailyCrewManagedApparatusTypes(boardData);
+  const apparatusOptions = getApparatusOptions(boardData);
+  const apparatusLabelToId = getDailyCrewApparatusLabelToId(apparatusTypes);
+  const typeId = getDailyCrewApparatusType(savedData, shiftId, hour, slot, apparatusTypes);
+  const apparatus = apparatusTypes[typeId] || apparatusTypes[slot.defaultType];
   const unit = document.createElement("article");
   unit.className = `daily-crews-unit apparatus-card ${apparatus.modifier}`;
 
   const header = document.createElement("header");
   header.className = "daily-crews-unit-header apparatus-header";
+  if (apparatus.color) {
+    header.style.background = apparatus.color;
+  }
   const typeKey = `${shiftId}-${hour}-${slot.id}-apparatus`;
   const headerField = createSearchCombobox({
     className: "apparatus-header-input daily-crews-unit-header-input",
-    options: dailyCrewApparatusOptions,
+    options: apparatusOptions,
     value: apparatus.title,
     ariaLabel: `${shiftId} ${hour} ${slot.id} apparatus`,
     onCommit: (value, input) => {
-      const chosenType = dailyCrewApparatusLabelToId[String(value || "").toLowerCase()] || typeId;
-      input.value = dailyCrewApparatusTypes[chosenType].title;
-      if (chosenType === typeId) {
+      const chosenType = apparatusLabelToId[String(value || "").toLowerCase()] || typeId;
+      const nextType = apparatusTypes[chosenType] ? chosenType : apparatus.id;
+      input.value = apparatusTypes[nextType].title;
+      if (nextType === typeId) {
         return;
       }
-      savedData[typeKey] = chosenType;
+      savedData[typeKey] = nextType;
       saveDailyCrewsData(savedData);
       renderDailyCrewsPage();
     }
