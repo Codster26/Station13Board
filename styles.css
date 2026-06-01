@@ -1018,6 +1018,21 @@ body::before {
   color: #eff4fb;
 }
 
+.edit-unlock-button {
+  border-color: rgba(255, 204, 0, 0.36);
+  color: #ffdc5e;
+}
+
+.edit-unlock-button--unlocked {
+  border-color: rgba(17, 115, 75, 0.72);
+  background: rgba(17, 115, 75, 0.24);
+  color: #c8ffd9;
+}
+
+.edit-unlock-button--unlocked:hover {
+  color: #ffffff;
+}
+
 .staffing-card {
   border: 1px solid var(--line);
   border-radius: 24px;

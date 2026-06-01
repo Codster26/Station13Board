@@ -1,16 +1,10 @@
 (() => {
   const EDIT_KEY = "station13-edit-passkey-ok";
   const PASSKEY = "1326";
-  const EDITABLE_SELECTOR = [
-    "input",
-    "select",
-    "textarea",
-    "button",
-    "[contenteditable='true']"
-  ].join(",");
+  const CONTROL_SELECTOR = "input, select, textarea, button";
+  const SKIP_SELECTOR = ".edit-lock-button, .menu-toggle, .top-link, summary";
 
   let pendingResolve = null;
-  let lastRequestedTarget = null;
 
   function isUnlocked() {
     return localStorage.getItem(EDIT_KEY) === "true";
@@ -21,21 +15,35 @@
     document.documentElement.classList.add("station13-edit-unlocked");
   }
 
-  function isLockUiTarget(target) {
-    return Boolean(target?.closest?.(".edit-lock-modal"));
+  function isProtectedControl(control) {
+    return control && control.matches(CONTROL_SELECTOR) && !control.closest(".edit-lock-modal") && !control.matches(SKIP_SELECTOR);
   }
 
-  function isEditableTarget(target) {
-    const editable = target?.closest?.(EDITABLE_SELECTOR);
-    if (!editable || isLockUiTarget(target)) {
-      return null;
+  function setControlsLocked(locked) {
+    document.querySelectorAll(CONTROL_SELECTOR).forEach((control) => {
+      if (!isProtectedControl(control)) {
+        return;
+      }
+
+      control.disabled = locked;
+      control.setAttribute("aria-disabled", locked ? "true" : "false");
+    });
+  }
+
+  function refreshButton() {
+    const button = document.getElementById("editUnlockButton");
+    if (!button) {
+      return;
     }
 
-    if (editable.matches("button") && editable.classList.contains("menu-toggle")) {
-      return null;
-    }
+    button.textContent = isUnlocked() ? "Editing Unlocked" : "Unlock Editing";
+    button.classList.toggle("edit-unlock-button--unlocked", isUnlocked());
+  }
 
-    return editable;
+  function applyLockState() {
+    const locked = !isUnlocked();
+    setControlsLocked(locked);
+    refreshButton();
   }
 
   function buildModal() {
@@ -82,6 +90,7 @@
     function submitPasskey() {
       if (input.value === PASSKEY) {
         rememberUnlock();
+        applyLockState();
         close(true);
         return;
       }
@@ -117,8 +126,7 @@
     }
 
     if (pendingResolve) {
-      const input = document.getElementById("editLockInput");
-      input?.focus();
+      document.getElementById("editLockInput")?.focus();
       return new Promise((resolve) => {
         const previousResolve = pendingResolve;
         pendingResolve = (result) => {
@@ -138,68 +146,57 @@
     });
   }
 
-  async function unlockForTarget(target) {
-    const unlocked = await requestPasskey();
-    if (!unlocked || !target?.isConnected) {
+  function insertUnlockButton() {
+    if (document.getElementById("editUnlockButton")) {
       return;
     }
 
-    window.setTimeout(() => {
-      target.focus?.();
-      if (typeof target.select === "function" && target.matches("input, textarea")) {
-        target.select();
+    const button = document.createElement("button");
+    button.id = "editUnlockButton";
+    button.className = "top-link edit-unlock-button";
+    button.type = "button";
+    button.addEventListener("click", () => {
+      if (!isUnlocked()) {
+        requestPasskey();
       }
-    }, 0);
+    });
+
+    const ridingNav = document.querySelector(".board-bottom-nav");
+    if (ridingNav) {
+      ridingNav.prepend(button);
+      return;
+    }
+
+    const menu = document.querySelector(".top-links--menu");
+    if (menu) {
+      menu.prepend(button);
+    }
   }
 
-  function interceptEdit(event) {
+  function observeNewControls() {
+    const observer = new MutationObserver(() => {
+      applyLockState();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  function init() {
     if (isUnlocked()) {
-      return;
+      document.documentElement.classList.add("station13-edit-unlocked");
     }
 
-    const editable = isEditableTarget(event.target);
-    if (!editable) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation?.();
-
-    if (lastRequestedTarget !== editable) {
-      lastRequestedTarget = editable;
-      unlockForTarget(editable).finally(() => {
-        lastRequestedTarget = null;
-      });
-    } else {
-      requestPasskey();
-    }
+    insertUnlockButton();
+    applyLockState();
+    observeNewControls();
   }
 
-  document.addEventListener("pointerdown", interceptEdit, true);
-  document.addEventListener("mousedown", interceptEdit, true);
-  document.addEventListener("click", interceptEdit, true);
-  document.addEventListener("focusin", interceptEdit, true);
-  document.addEventListener("keydown", (event) => {
-    if (isUnlocked() || isLockUiTarget(event.target)) {
-      return;
-    }
-
-    const editable = isEditableTarget(event.target);
-    if (!editable) {
-      return;
-    }
-
-    const allowedNavigationKeys = new Set(["Tab", "Shift", "Control", "Alt", "Meta"]);
-    if (allowedNavigationKeys.has(event.key)) {
-      return;
-    }
-
-    interceptEdit(event);
-  }, true);
-
-  if (isUnlocked()) {
-    document.documentElement.classList.add("station13-edit-unlocked");
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
   }
 
   window.station13EditLock = {
@@ -208,6 +205,7 @@
     lock() {
       localStorage.removeItem(EDIT_KEY);
       document.documentElement.classList.remove("station13-edit-unlocked");
+      applyLockState();
     }
   };
 })();
