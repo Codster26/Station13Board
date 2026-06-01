@@ -360,7 +360,8 @@ function renderApparatusCards() {
       onCommit: (value, input) => {
         const chosenId = apparatusLabelToId[String(value || "").toLowerCase()];
         const nextId = chosenId || apparatus.id;
-        input.value = apparatusTypes[nextId].title;
+        const nextApparatus = apparatusTypes[nextId] || apparatusTypes[apparatusId] || apparatusTypes.engine132 || apparatus;
+        input.value = nextApparatus.title;
         if (nextId === apparatusId) {
           return;
         }
@@ -957,13 +958,17 @@ function renderDailyCalendar() {
 }
 
 async function initBoardPage() {
+  refreshBoardFromPersistence();
+
   if (window.storageService) {
-    await window.storageService.initializePersistence();
+    try {
+      await window.storageService.initializePersistence();
+      refreshBoardFromPersistence();
+    } catch (error) {
+      console.warn("Station 13 persistence failed to initialize; using local board data.", error);
+    }
+    return;
   }
-  renderApparatusCards();
-  populateBoardDropdowns();
-  renderOutOfServiceCard();
-  renderDailyCalendar();
 }
 
 function isBoardFieldActive() {
