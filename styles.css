@@ -924,6 +924,100 @@ body::before {
   color: #ffb1b1;
 }
 
+.edit-lock-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(126, 167, 209, 0.22), transparent 34%),
+    rgba(3, 10, 18, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.edit-lock-modal[hidden] {
+  display: none;
+}
+
+.edit-lock-card {
+  width: min(420px, 100%);
+  border: 1px solid rgba(188, 213, 242, 0.24);
+  border-radius: 24px;
+  padding: 22px;
+  background: linear-gradient(145deg, rgba(10, 24, 40, 0.98), rgba(5, 14, 25, 0.98));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  color: #eff4fb;
+  font-family: "Arial Black", Arial, sans-serif;
+  text-align: center;
+}
+
+.edit-lock-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.55rem;
+  text-transform: uppercase;
+}
+
+.edit-lock-card p {
+  margin: 0 0 16px;
+  color: #b8c5d4;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.edit-lock-input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(188, 213, 242, 0.32);
+  border-radius: 16px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-family: "Arial Black", Arial, sans-serif;
+  font-size: 1.35rem;
+  text-align: center;
+  letter-spacing: 0.24em;
+  outline: none;
+}
+
+.edit-lock-input:focus {
+  border-color: rgba(255, 204, 0, 0.78);
+  box-shadow: 0 0 0 3px rgba(255, 204, 0, 0.16);
+}
+
+.edit-lock-error {
+  min-height: 22px;
+  margin-top: 8px;
+  color: #ffb7b7;
+  font-size: 0.82rem;
+}
+
+.edit-lock-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.edit-lock-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffcc00, #c49113);
+  color: #07111d;
+  cursor: pointer;
+  font-family: "Arial Black", Arial, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.edit-lock-button--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #eff4fb;
+}
+
 .staffing-card {
   border: 1px solid var(--line);
   border-radius: 24px;
