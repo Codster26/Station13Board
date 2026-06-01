@@ -19,17 +19,6 @@
     return control && control.matches(CONTROL_SELECTOR) && !control.closest(".edit-lock-modal") && !control.matches(SKIP_SELECTOR);
   }
 
-  function setControlsLocked(locked) {
-    document.querySelectorAll(CONTROL_SELECTOR).forEach((control) => {
-      if (!isProtectedControl(control)) {
-        return;
-      }
-
-      control.disabled = locked;
-      control.setAttribute("aria-disabled", locked ? "true" : "false");
-    });
-  }
-
   function refreshButton() {
     const button = document.getElementById("editUnlockButton");
     if (!button) {
@@ -41,9 +30,34 @@
   }
 
   function applyLockState() {
-    const locked = !isUnlocked();
-    setControlsLocked(locked);
+    document.documentElement.classList.toggle("station13-edit-locked", !isUnlocked());
+    document.documentElement.classList.toggle("station13-edit-unlocked", isUnlocked());
     refreshButton();
+  }
+
+  function isEditEventTarget(target) {
+    const control = target?.closest?.(CONTROL_SELECTOR);
+    return isProtectedControl(control) ? control : null;
+  }
+
+  function guardLockedEdit(event) {
+    if (isUnlocked()) {
+      return;
+    }
+
+    const control = isEditEventTarget(event.target);
+    if (!control) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function installEditGuards() {
+    ["pointerdown", "mousedown", "touchstart", "keydown", "input", "change"].forEach((eventName) => {
+      document.addEventListener(eventName, guardLockedEdit, true);
+    });
   }
 
   function buildModal() {
@@ -173,24 +187,10 @@
     }
   }
 
-  function observeNewControls() {
-    const observer = new MutationObserver(() => {
-      applyLockState();
-    });
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-  }
-
   function init() {
-    if (isUnlocked()) {
-      document.documentElement.classList.add("station13-edit-unlocked");
-    }
-
     insertUnlockButton();
     applyLockState();
-    observeNewControls();
+    installEditGuards();
   }
 
   if (document.readyState === "loading") {
@@ -204,7 +204,6 @@
     requestPasskey,
     lock() {
       localStorage.removeItem(EDIT_KEY);
-      document.documentElement.classList.remove("station13-edit-unlocked");
       applyLockState();
     }
   };
