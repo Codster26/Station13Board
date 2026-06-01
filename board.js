@@ -403,6 +403,10 @@ function addDays(date, offsetDays) {
   return nextDate;
 }
 
+function stripCommandRoleLabel(value) {
+  return String(value || "").replace(/\s+-\s+.+$/, "").trim();
+}
+
 function populateBoardDropdowns() {
   const boardData = loadBoardData();
   const selects = document.querySelectorAll("select[data-seat]");
@@ -524,12 +528,11 @@ function ensureDailyCalendarStartsBlank(boardData) {
 }
 
 function formatDisplayDate(date = new Date()) {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
+  const monthDay = new Intl.DateTimeFormat("en-US", {
     month: "long",
-    day: "numeric",
-    year: "numeric"
-  }).format(date);
+    day: "numeric"
+  }).format(date).replace(" ", ", ");
+  return `${monthDay}\n${date.getFullYear()}`;
 }
 
 function appendCalendarColGroup(table, includeSideColumn = true) {
@@ -566,6 +569,7 @@ function renderDailyCalendarBlock(dayDate, dayLabel, boardData, weeklyAssignment
 
   const activeMembers = boardData.activeMembers || [];
   const command13Members = boardData.command13Members || [];
+  const command13CalendarMembers = uniqueNames(command13Members.map(stripCommandRoleLabel));
   const activeMemberColors = boardData.colorRules?.activeMembers || {};
   const command13Colors = boardData.colorRules?.command13 || {};
   const dayKey = getDateKey(dayDate);
@@ -672,8 +676,8 @@ function renderDailyCalendarBlock(dayDate, dayLabel, boardData, weeklyAssignment
 
     const memberCell = document.createElement("td");
     const commandKey = `weekly-${dayKey}-command-${shift.id}-member`;
-    const commandValue = weeklyAssignments[commandKey] || "";
-    memberCell.appendChild(createDailySelect("name", commandKey, activeMembers, commandValue, weeklyAssignments, command13Members, command13Colors));
+    const commandValue = stripCommandRoleLabel(weeklyAssignments[commandKey] || "");
+    memberCell.appendChild(createDailySelect("name", commandKey, activeMembers, commandValue, weeklyAssignments, command13CalendarMembers, command13Colors));
     commandRow.appendChild(memberCell);
 
     const outCell = document.createElement("td");

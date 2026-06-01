@@ -430,6 +430,7 @@ async function exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDa
         }
         .dc-side-cell--date {
           font-size: 0.64rem !important;
+          white-space: pre-line !important;
         }
       `
     );

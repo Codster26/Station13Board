@@ -77,12 +77,15 @@ function getArchivedAnchorDate() {
 }
 
 function formatArchivedDateLong(date) {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
+  const monthDay = new Intl.DateTimeFormat("en-US", {
     month: "long",
-    day: "numeric",
-    year: "numeric"
-  }).format(date);
+    day: "numeric"
+  }).format(date).replace(" ", ", ");
+  return `${monthDay}\n${date.getFullYear()}`;
+}
+
+function stripCommandRoleLabel(value) {
+  return String(value || "").replace(/\s+-\s+.+$/, "").trim();
 }
 
 function applyArchivedCrewStatusColor(select) {
@@ -134,8 +137,9 @@ function createArchivedSelect(kind, key, selectedValue, activeMembers, command13
       selectedValue = "";
     }
   } else if (kind === "command") {
-    const commandOptions = uniqueNames(command13Members);
+    const commandOptions = uniqueNames(command13Members.map(stripCommandRoleLabel));
     options = commandOptions;
+    selectedValue = stripCommandRoleLabel(selectedValue);
     if (selectedValue && !commandOptions.includes(selectedValue)) {
       selectedValue = "";
     }
