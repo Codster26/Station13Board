@@ -7,30 +7,6 @@ const shiftConfigsWeekly = [
 ];
 const weeklySlotCount = 15;
 
-const crewStatusOptionsWeekly = [
-  "Not Staffed",
-  "Staffed Engine Only",
-  "Staffed 1 Crew",
-  "Staffed 1 Crew w/ Tower",
-  "Staffed 2 Crews",
-  "Staffed 2 Crews w/ Tower",
-  "Staffed 3 Crews",
-  "Live Burn",
-  "Cover"
-];
-
-const crewStatusColorsWeekly = {
-  "Not Staffed": "#b10202",
-  "Staffed Engine Only": "#ffcfc9",
-  "Staffed 1 Crew": "#c6dbe1",
-  "Staffed 1 Crew w/ Tower": "#11734b",
-  "Staffed 2 Crews w/ Tower": "#11734b",
-  "Staffed 3 Crews": "#11734b",
-  "Staffed 2 Crews": "#bfe1f6",
-  "Live Burn": "#753800",
-  "Cover": "#0a53a8"
-};
-
 function loadWeeklyAssignments() {
   if (window.storageService) {
     return window.storageService.loadValue("weeklyAssignments", {}) || {};
@@ -112,7 +88,7 @@ function applyCrewStatusColor(select) {
   if (select.dataset.kind !== "crew") {
     return;
   }
-  const color = crewStatusColorsWeekly[select.value] || "rgba(12, 110, 61, 0.9)";
+  const color = getShiftStatusColors()[select.value] || "rgba(12, 110, 61, 0.9)";
   const th = select.closest(".dc-crew-title");
   if (th) {
     th.style.background = color;
@@ -150,8 +126,8 @@ function createWeeklySelect(kind, key, selectedValue, activeMembers, command13Me
       selectedValue = "";
     }
   } else if (kind === "crew") {
-    options = crewStatusOptionsWeekly;
-    if (selectedValue && !crewStatusOptionsWeekly.includes(selectedValue)) {
+    options = getShiftStatusOptions();
+    if (selectedValue && !options.includes(selectedValue)) {
       selectedValue = "";
     }
   }

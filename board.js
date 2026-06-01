@@ -95,30 +95,6 @@ const DAILY_BLANK_VERSION = "1";
 const WEEKLY_STORAGE_KEY = "station13-weekly-calendar";
 let activeOutServiceDateMenu = null;
 
-const crewStatusOptions = [
-  "Not Staffed",
-  "Staffed Engine Only",
-  "Staffed 1 Crew",
-  "Staffed 1 Crew w/ Tower",
-  "Staffed 2 Crews",
-  "Staffed 2 Crews w/ Tower",
-  "Staffed 3 Crews",
-  "Live Burn",
-  "Cover"
-];
-
-const crewStatusColors = {
-  "Not Staffed": "#b10202",
-  "Staffed Engine Only": "#ffcfc9",
-  "Staffed 1 Crew": "#c6dbe1",
-  "Staffed 1 Crew w/ Tower": "#11734b",
-  "Staffed 2 Crews w/ Tower": "#11734b",
-  "Staffed 3 Crews": "#11734b",
-  "Staffed 2 Crews": "#bfe1f6",
-  "Live Burn": "#753800",
-  "Cover": "#0a53a8"
-};
-
 const defaultDailyAssignments = {};
 
 function getPoolForSeat(boardData, seatId) {
@@ -199,7 +175,7 @@ function applyCrewStatusColor(select) {
     return;
   }
 
-  const color = crewStatusColors[select.value] || "rgba(12, 110, 61, 0.9)";
+  const color = getShiftStatusColors()[select.value] || "rgba(12, 110, 61, 0.9)";
   const th = select.closest(".dc-crew-title");
   if (th) {
     th.style.background = color;
@@ -691,7 +667,7 @@ function createDailySelect(kind, key, activeMembers, selectedValue, weeklyAssign
       selectedValue = "";
     }
   } else if (kind === "crew") {
-    const crewOptions = crewStatusOptions;
+    const crewOptions = getShiftStatusOptions();
     options = crewOptions;
     if (selectedValue && !crewOptions.includes(selectedValue)) {
       selectedValue = "";

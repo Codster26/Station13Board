@@ -11,6 +11,7 @@ const fields = {
   command13: document.getElementById("command13Input"),
   colorTags: document.getElementById("colorTagsInput"),
   calendarTags: document.getElementById("calendarTagsInput"),
+  shiftStatus: document.getElementById("shiftStatusInput"),
   liveIns: document.getElementById("liveInsInput")
 };
 
@@ -33,12 +34,14 @@ function writeListsToForm(boardData) {
   fields.command13.value = formatNameColorList(boardData.command13Members || [], colorRules.command13 || {}, tagRules.command13 || {});
   fields.colorTags.value = formatColorTagList(boardData.colorTags || {});
   fields.calendarTags.value = formatColorTagList(boardData.calendarTags || {});
+  fields.shiftStatus.value = formatShiftStatusList(getShiftStatusOptions(boardData), getShiftStatusColors(boardData));
   fields.liveIns.value = (boardData.liveIns || []).join("\n");
 }
 
 function readListsFromForm() {
   const colorTags = parseColorTagList(fields.colorTags.value);
   const calendarTags = parseColorTagList(fields.calendarTags.value);
+  const shiftStatusData = parseShiftStatusList(fields.shiftStatus.value);
   const activeMemberData = parseNameColorList(fields.activeMembers.value, colorTags);
   const engineDriverData = parseNameColorList(fields.engineDriver.value, colorTags);
   const rescueDriverData = parseNameColorList(fields.rescueDriver.value, colorTags);
@@ -54,6 +57,8 @@ function readListsFromForm() {
     activeMembers: activeMemberData.names,
     colorTags,
     calendarTags,
+    shiftStatuses: shiftStatusData.statuses,
+    shiftStatusColors: shiftStatusData.colors,
     rolePools: {
       engineDriver: engineDriverData.names,
       rescueDriver: rescueDriverData.names,

@@ -2,30 +2,6 @@ const DAILY_CREWS_STORAGE_KEY = "station13-daily-crews";
 const DAILY_CREWS_WEEKLY_STORAGE_KEY = "station13-weekly-calendar";
 const dailyCrewsSlotCount = 15;
 
-const dailyCrewStatusOptions = [
-  "Not Staffed",
-  "Staffed Engine Only",
-  "Staffed 1 Crew",
-  "Staffed 1 Crew w/ Tower",
-  "Staffed 2 Crews",
-  "Staffed 2 Crews w/ Tower",
-  "Staffed 3 Crews",
-  "Live Burn",
-  "Cover"
-];
-
-const dailyCrewStatusColors = {
-  "Not Staffed": "#b10202",
-  "Staffed Engine Only": "#ffcfc9",
-  "Staffed 1 Crew": "#c6dbe1",
-  "Staffed 1 Crew w/ Tower": "#11734b",
-  "Staffed 2 Crews w/ Tower": "#11734b",
-  "Staffed 3 Crews": "#11734b",
-  "Staffed 2 Crews": "#bfe1f6",
-  "Live Burn": "#753800",
-  "Cover": "#0a53a8"
-};
-
 const dailyCrewShifts = [
   { id: "a", label: "A Shift", rangeLabel: "0000 - 0600", hours: ["0000", "0100", "0200", "0300", "0400", "0500"] },
   { id: "b", label: "B Shift", rangeLabel: "0600 - 1200", hours: ["0600", "0700", "0800", "0900", "1000", "1100"] },
@@ -197,7 +173,7 @@ function applyDailyCrewsStatusColor(select) {
   if (select.dataset.kind !== "crew") {
     return;
   }
-  const color = dailyCrewStatusColors[select.value] || "#11734b";
+  const color = getShiftStatusColors()[select.value] || "#11734b";
   const cell = select.closest(".daily-crews-summary-crew");
   if (cell) {
     cell.style.background = color;
@@ -213,7 +189,7 @@ function createDailyCrewsMirrorValue(kind, rawValue, colorMap = {}) {
 
   if (kind === "crew") {
     node.classList.add("daily-crews-readonly--crew");
-    node.style.background = dailyCrewStatusColors[value] || "#b10202";
+    node.style.background = getShiftStatusColors()[value] || "#b10202";
     node.style.color = "#ffffff";
   } else if (kind === "command") {
     node.classList.add("daily-crews-readonly--command");

@@ -1,5 +1,27 @@
 const BOARD_STORAGE_KEY = "station13-riding-board-data";
 const OPEN_ASSIGNMENT = "Open Assignment";
+const DEFAULT_SHIFT_STATUSES = [
+  "Not Staffed",
+  "Staffed Engine Only",
+  "Staffed 1 Crew",
+  "Staffed 1 Crew w/ Tower",
+  "Staffed 2 Crews",
+  "Staffed 2 Crews w/ Tower",
+  "Staffed 3 Crews",
+  "Live Burn",
+  "Cover"
+];
+const DEFAULT_SHIFT_STATUS_COLORS = {
+  "Not Staffed": "#b10202",
+  "Staffed Engine Only": "#ffcfc9",
+  "Staffed 1 Crew": "#c6dbe1",
+  "Staffed 1 Crew w/ Tower": "#11734b",
+  "Staffed 2 Crews w/ Tower": "#11734b",
+  "Staffed 3 Crews": "#11734b",
+  "Staffed 2 Crews": "#bfe1f6",
+  "Live Burn": "#753800",
+  "Cover": "#0a53a8"
+};
 
 const DEFAULT_BOARD_DATA = {
   colorRulesVersion: 2,
@@ -534,6 +556,8 @@ const DEFAULT_BOARD_DATA = {
     "Live Burn": "#ffc8aa"
   },
   calendarNotes: {},
+  shiftStatuses: DEFAULT_SHIFT_STATUSES,
+  shiftStatusColors: DEFAULT_SHIFT_STATUS_COLORS,
   colorRules: {
     activeMembers: {},
     engineDriver: {},
@@ -611,6 +635,8 @@ function mergeWithDefaults(stored) {
     colorTags: { ...(stored?.colorTags || DEFAULT_BOARD_DATA.colorTags) },
     calendarTags: { ...(stored?.calendarTags || DEFAULT_BOARD_DATA.calendarTags) },
     calendarNotes: { ...(stored?.calendarNotes || DEFAULT_BOARD_DATA.calendarNotes) },
+    shiftStatuses: uniqueNames(stored?.shiftStatuses || DEFAULT_BOARD_DATA.shiftStatuses),
+    shiftStatusColors: { ...(stored?.shiftStatusColors || DEFAULT_BOARD_DATA.shiftStatusColors) },
     colorRules: {
       activeMembers: legacySharedColors ? {} : { ...(stored?.colorRules?.activeMembers || {}) },
       engineDriver: { ...(stored?.colorRules?.engineDriver || {}) },
@@ -752,6 +778,35 @@ function formatNameColorList(names, colorMap, tagMap = {}) {
         return `${name} - ${tag}`;
       }
       return color ? `${name} - ${color}` : name;
+    })
+    .join("\n");
+}
+
+function getShiftStatusOptions(boardData = loadBoardData()) {
+  const statuses = uniqueNames(boardData?.shiftStatuses || DEFAULT_SHIFT_STATUSES);
+  return statuses.length ? statuses : DEFAULT_SHIFT_STATUSES;
+}
+
+function getShiftStatusColors(boardData = loadBoardData()) {
+  return {
+    ...DEFAULT_SHIFT_STATUS_COLORS,
+    ...(boardData?.shiftStatusColors || {})
+  };
+}
+
+function parseShiftStatusList(text) {
+  const parsed = parseNameColorList(text);
+  return {
+    statuses: parsed.names,
+    colors: parsed.colors
+  };
+}
+
+function formatShiftStatusList(statuses, colorMap = {}) {
+  return (statuses || [])
+    .map((status) => {
+      const color = colorMap?.[status];
+      return color ? `${status} - ${color}` : status;
     })
     .join("\n");
 }

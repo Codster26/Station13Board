@@ -7,30 +7,6 @@ const shiftConfigsArchived = [
 ];
 const archivedSlotCount = 15;
 
-const crewStatusOptionsArchived = [
-  "Not Staffed",
-  "Staffed Engine Only",
-  "Staffed 1 Crew",
-  "Staffed 1 Crew w/ Tower",
-  "Staffed 2 Crews",
-  "Staffed 2 Crews w/ Tower",
-  "Staffed 3 Crews",
-  "Live Burn",
-  "Cover"
-];
-
-const crewStatusColorsArchived = {
-  "Not Staffed": "#b10202",
-  "Staffed Engine Only": "#ffcfc9",
-  "Staffed 1 Crew": "#c6dbe1",
-  "Staffed 1 Crew w/ Tower": "#11734b",
-  "Staffed 2 Crews w/ Tower": "#11734b",
-  "Staffed 3 Crews": "#11734b",
-  "Staffed 2 Crews": "#bfe1f6",
-  "Live Burn": "#753800",
-  "Cover": "#0a53a8"
-};
-
 function loadArchivedAssignments() {
   if (window.storageService) {
     return window.storageService.loadValue("archivedAssignments", {}) || {};
@@ -92,7 +68,7 @@ function applyArchivedCrewStatusColor(select) {
   if (select.dataset.kind !== "crew") {
     return;
   }
-  const color = crewStatusColorsArchived[select.value] || "rgba(12, 110, 61, 0.9)";
+  const color = getShiftStatusColors()[select.value] || "rgba(12, 110, 61, 0.9)";
   const th = select.closest(".dc-crew-title");
   if (th) {
     th.style.background = color;
@@ -150,8 +126,8 @@ function createArchivedSelect(kind, key, selectedValue, activeMembers, command13
       selectedValue = "";
     }
   } else if (kind === "crew") {
-    options = crewStatusOptionsArchived;
-    if (selectedValue && !crewStatusOptionsArchived.includes(selectedValue)) {
+    options = getShiftStatusOptions();
+    if (selectedValue && !options.includes(selectedValue)) {
       selectedValue = "";
     }
   }

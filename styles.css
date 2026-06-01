@@ -1666,3 +1666,319 @@ body::before {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 760px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  .page-shell,
+  .staffing-page .page-shell,
+  .board-page .page-shell {
+    width: 100%;
+    min-height: 100vh;
+    display: block;
+    padding: 8px 8px 28px;
+  }
+
+  .hero,
+  .hero--with-link {
+    min-height: 62px;
+    padding: 8px 46px 8px 14px;
+    border-radius: 18px;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 10vw, 2.9rem);
+    line-height: 1;
+    letter-spacing: 0.07em;
+  }
+
+  .nav-menu {
+    right: 12px;
+  }
+
+  .nav-menu[open] .top-links--menu {
+    min-width: min(280px, calc(100vw - 24px));
+    right: -4px;
+  }
+
+  .board-page .board-layout,
+  .board-layout {
+    display: block;
+    height: auto;
+    min-height: 0;
+    margin-top: 10px;
+  }
+
+  .riding-top-layout {
+    --board-calendar-day-height: 520px;
+    --board-calendar-cell-font-size: 0.98rem;
+    --board-calendar-shift-font-size: 1rem;
+    --board-calendar-side-title-font-size: 1rem;
+    --board-calendar-side-date-font-size: 0.92rem;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .riding-left-stack {
+    height: auto;
+  }
+
+  .assignment-grid,
+  .command-rail {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    gap: 10px;
+  }
+
+  .board-page .apparatus-card {
+    min-height: auto;
+  }
+
+  .apparatus-header,
+  .command-card .apparatus-header {
+    height: 46px;
+    min-height: 46px;
+    max-height: 46px;
+  }
+
+  .apparatus-header h2,
+  .apparatus-header-input,
+  .daily-crews-unit-header,
+  .daily-crews-unit-header-input {
+    font-size: clamp(1.9rem, 9vw, 2.7rem);
+    letter-spacing: 0.09em;
+  }
+
+  .command-card .apparatus-header h2,
+  .command-card--command .apparatus-header h2,
+  .command-card--secondary .apparatus-header h2,
+  .command-card--coordinator .apparatus-header h2 {
+    font-size: clamp(1.45rem, 6.6vw, 2rem);
+    letter-spacing: 0.07em;
+  }
+
+  .board-page .apparatus-card .seat-list,
+  .seat-list {
+    padding: 8px 10px 10px;
+    gap: 7px;
+  }
+
+  .board-page .apparatus-card .seat-row,
+  .seat-row {
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 8px;
+    min-height: 42px;
+    padding: 0;
+  }
+
+  .board-page .apparatus-card .seat-role,
+  .seat-role {
+    font-size: 1rem;
+    letter-spacing: 0;
+  }
+
+  .board-page .apparatus-card .seat-input,
+  .seat-input,
+  .daily-crews-select {
+    min-height: 36px;
+    font-size: 1.05rem;
+    padding: 4px 6px;
+  }
+
+  .command-card {
+    grid-template-rows: 46px 46px;
+  }
+
+  .command-card,
+  .command-card .seat-list,
+  .command-card .seat-row--single,
+  .board-page .command-card .search-combobox > .seat-input {
+    height: auto;
+    min-height: 46px;
+  }
+
+  .command-card .seat-row--single .seat-input,
+  .seat-row--single .seat-input {
+    height: 46px;
+    min-height: 46px;
+    line-height: 46px;
+    font-size: 1rem;
+  }
+
+  .out-service-card {
+    grid-template-rows: 38px auto;
+  }
+
+  .out-service-card .apparatus-header {
+    height: 38px;
+    min-height: 38px;
+    max-height: 38px;
+  }
+
+  .out-service-card .apparatus-header h2 {
+    font-size: 0.95rem;
+  }
+
+  .out-service-table {
+    min-height: 260px;
+  }
+
+  .board-calendar-stack,
+  .weekly-stack {
+    gap: 12px;
+  }
+
+  .daily-calendar-card,
+  .staffing-card,
+  .daily-crews-card {
+    border-radius: 18px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .board-calendar-stack .daily-calendar-card {
+    height: var(--board-calendar-day-height);
+    min-height: var(--board-calendar-day-height);
+  }
+
+  .board-calendar-stack .daily-calendar-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .board-page .daily-calendar-table,
+  .daily-calendar-table {
+    width: 1180px;
+    min-width: 1180px;
+    table-layout: fixed;
+  }
+
+  .board-page .dc-col-side,
+  .board-page .dc-side-header,
+  .board-page .dc-side-cell {
+    width: 96px;
+  }
+
+  .board-page .dc-col-time {
+    width: 44px;
+  }
+
+  .daily-select {
+    min-height: 30px;
+    font-size: 0.98rem;
+  }
+
+  .dc-side-content {
+    padding: 4px;
+  }
+
+  .dc-side-tag-select {
+    min-height: 34px;
+    font-size: 0.78rem;
+  }
+
+  .dc-side-description {
+    min-height: 56px;
+    font-size: 0.72rem;
+  }
+
+  .board-bottom-nav {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding-top: 14px;
+  }
+
+  .board-bottom-nav .top-link,
+  .top-link {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
+  .manage-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .manage-card {
+    border-radius: 18px;
+  }
+
+  .manage-input {
+    min-height: 240px;
+    font-size: 1rem;
+  }
+
+  .staffing-card {
+    width: 100%;
+  }
+
+  .staffing-table {
+    min-width: 1250px;
+  }
+
+  .staffing-table th,
+  .staffing-table td {
+    padding: 8px 9px;
+    font-size: 0.92rem;
+  }
+
+  .daily-crews-wrap {
+    min-width: 0;
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .daily-crews-shift-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-crews-shift-badge {
+    min-height: 54px;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    letter-spacing: 0.24em;
+  }
+
+  .daily-crews-shift-content {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .daily-crews-shift-stack {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .daily-crews-time {
+    font-size: 1.55rem;
+    padding: 8px 10px;
+  }
+
+  .daily-crews-row {
+    grid-template-columns: 102px minmax(0, 1fr);
+    min-height: 40px;
+  }
+
+  .daily-crews-role {
+    font-size: 1rem;
+  }
+
+  .daily-crews-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-crews-summary-shell {
+    overflow-x: auto;
+  }
+
+  .daily-crews-summary-table {
+    min-width: 760px;
+  }
+}

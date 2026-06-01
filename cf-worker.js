@@ -10,7 +10,8 @@ const DEFAULT_STATE = {
   systemMeta: {
     lastScheduledSourceDate: null,
     displayDateKey: null,
-    lastWeeklyExportDate: null
+    lastWeeklyExportDate: null,
+    lastDailyCrewBoardSyncKey: null
   }
 };
 
@@ -22,6 +23,24 @@ const SHIFT_WINDOWS = {
   c: { start: 12, end: 18 },
   d: { start: 18, end: 24 }
 };
+const DAILY_CREW_SHIFT_BY_HOUR = [
+  { id: "a", hours: ["0000", "0100", "0200", "0300", "0400", "0500"] },
+  { id: "b", hours: ["0600", "0700", "0800", "0900", "1000", "1100"] },
+  { id: "c", hours: ["1200", "1300", "1400", "1500", "1600", "1700"] },
+  { id: "d", hours: ["1800", "1900", "2000", "2100", "2200", "2300"] }
+];
+const DAILY_CREW_APPARATUS_SLOTS = [
+  { sourceId: "engine", targetId: "slot1", defaultType: "engine132" },
+  { sourceId: "tower", targetId: "slot2", defaultType: "tower13" },
+  { sourceId: "rescue", targetId: "slot3", defaultType: "rescue13" }
+];
+const DAILY_CREW_APPARATUS_TYPES = {
+  engine132: ["driver", "officer", "nozzle", "layout", "backup", "support"],
+  engine135: ["driver", "officer", "nozzle", "layout", "backup", "support"],
+  tower13: ["driver", "officer", "bar", "ovm", "can", "roof"],
+  rescue13: ["driver", "officer", "bar", "ovm", "can", "roof"]
+};
+const DAILY_CREW_ALL_POSITIONS = Array.from(new Set(Object.values(DAILY_CREW_APPARATUS_TYPES).flat()));
 
 function getDatePartsInTimeZone(date, timeZone = TIME_ZONE) {
   const formatter = new Intl.DateTimeFormat("en-US", {
@@ -48,6 +67,18 @@ function getDatePartsInTimeZone(date, timeZone = TIME_ZONE) {
 function getDateKeyInTimeZone(date, timeZone = TIME_ZONE) {
   const parts = getDatePartsInTimeZone(date, timeZone);
   return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function normalizeScheduledHour(hour) {
+  const parsed = Number(hour);
+  if (!Number.isFinite(parsed)) {
+    return "0000";
+  }
+  return `${String(parsed % 24).padStart(2, "0")}00`;
+}
+
+function getDailyCrewShiftForHour(hourLabel) {
+  return DAILY_CREW_SHIFT_BY_HOUR.find((shift) => shift.hours.includes(hourLabel)) || null;
 }
 
 function addDaysToDateKey(dateKey, offset) {
@@ -778,6 +809,100 @@ function shiftStaffingWindowForYesterday(nextState, currentDateKey, targetDateKe
   return nextState;
 }
 
+function applyDailyCrewHourToRidingBoard(state, dateKey, hourLabel) {
+  const shift = getDailyCrewShiftForHour(hourLabel);
+  if (!shift) {
+    return {
+      state,
+      applied: false,
+      reason: "No Daily Crews shift matches this hour."
+    };
+  }
+
+  const syncKey = `${dateKey}-${hourLabel}`;
+  const currentState = clone({
+    ...DEFAULT_STATE,
+    ...(state || {}),
+    systemMeta: {
+      ...DEFAULT_STATE.systemMeta,
+      ...(state?.systemMeta || {})
+    }
+  });
+
+  if (currentState.systemMeta?.lastDailyCrewBoardSyncKey === syncKey) {
+    return {
+      state: currentState,
+      applied: false,
+      reason: "Daily Crews hour already synced."
+    };
+  }
+
+  const dailyCrewsData = currentState.dailyCrewsData || {};
+  const hasHourData = DAILY_CREW_APPARATUS_SLOTS.some((slot) => {
+    const typeKey = `${shift.id}-${hourLabel}-${slot.sourceId}-apparatus`;
+    if (dailyCrewsData[typeKey]) {
+      return true;
+    }
+
+    return DAILY_CREW_ALL_POSITIONS.some((positionId) => {
+      const value = dailyCrewsData[`${shift.id}-${hourLabel}-${slot.sourceId}-${positionId}`];
+      return String(value || "").trim();
+    });
+  });
+
+  if (!hasHourData) {
+    currentState.systemMeta = {
+      ...(currentState.systemMeta || {}),
+      lastDailyCrewBoardSyncKey: syncKey
+    };
+    return {
+      state: currentState,
+      applied: false,
+      reason: "No Daily Crews entries were filled for this hour."
+    };
+  }
+
+  const boardData = clone(currentState.boardData || {});
+  const assignments = { ...(boardData.assignments || {}) };
+  const apparatusSlots = { ...(assignments.__apparatus_slots || {}) };
+
+  DAILY_CREW_APPARATUS_SLOTS.forEach((slot) => {
+    const sourceType = dailyCrewsData[`${shift.id}-${hourLabel}-${slot.sourceId}-apparatus`] || slot.defaultType;
+    const apparatusType = DAILY_CREW_APPARATUS_TYPES[sourceType] ? sourceType : slot.defaultType;
+    apparatusSlots[slot.targetId] = apparatusType;
+
+    DAILY_CREW_ALL_POSITIONS.forEach((positionId) => {
+      delete assignments[`rig-${slot.targetId}-${positionId}`];
+    });
+
+    DAILY_CREW_APPARATUS_TYPES[apparatusType].forEach((positionId) => {
+      const sourceKey = `${shift.id}-${hourLabel}-${slot.sourceId}-${positionId}`;
+      const targetKey = `rig-${slot.targetId}-${positionId}`;
+      const value = String(dailyCrewsData[sourceKey] || "").trim();
+      assignments[targetKey] = value || "Open Assignment";
+    });
+  });
+
+  assignments.__apparatus_slots = apparatusSlots;
+  assignments.__apparatus_layout_version = "2";
+
+  currentState.boardData = {
+    ...boardData,
+    assignments
+  };
+  currentState.systemMeta = {
+    ...(currentState.systemMeta || {}),
+    lastDailyCrewBoardSyncKey: syncKey
+  };
+
+  return {
+    state: currentState,
+    applied: true,
+    shiftId: shift.id,
+    hourLabel
+  };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -903,6 +1028,41 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/admin/sync-daily-crews-to-board" && request.method === "POST") {
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (error) {
+        body = {};
+      }
+
+      const now = new Date();
+      const parts = getDatePartsInTimeZone(now);
+      const currentDateKey = `${parts.year}-${parts.month}-${parts.day}`;
+      const state = await fetchCurrentState(env);
+      const dateKey = body.dateKey || currentDateKey;
+      const hourLabel = body.hourLabel || normalizeScheduledHour(parts.hour);
+      const sourceState = body.force === true
+        ? {
+            ...state,
+            systemMeta: {
+              ...(state.systemMeta || {}),
+              lastDailyCrewBoardSyncKey: null
+            }
+          }
+        : state;
+      const result = applyDailyCrewHourToRidingBoard(sourceState, dateKey, hourLabel);
+      await persistFullState(env, result.state);
+
+      return Response.json({
+        ok: true,
+        dateKey,
+        hourLabel,
+        applied: result.applied,
+        reason: result.reason || null
+      });
+    }
+
     if (url.pathname === "/api/admin/export-weekly-records" && request.method === "POST") {
       let body = {};
       try {
@@ -948,19 +1108,25 @@ export default {
   async scheduled(controller, env, ctx) {
     const now = new Date(controller.scheduledTime || Date.now());
     const parts = getDatePartsInTimeZone(now);
-    if (parts.hour !== "00") {
-      return;
-    }
-
     const currentDateKey = `${parts.year}-${parts.month}-${parts.day}`;
-    const sourceDateKey = addDaysToDateKey(currentDateKey, -1);
+    const currentHourLabel = normalizeScheduledHour(parts.hour);
     const state = await fetchCurrentState(env);
-    if (state.systemMeta?.lastScheduledSourceDate === sourceDateKey) {
+    const dailyCrewSync = applyDailyCrewHourToRidingBoard(state, currentDateKey, currentHourLabel);
+    let nextState = dailyCrewSync.state;
+
+    if (currentHourLabel !== "0000") {
+      await persistFullState(env, nextState);
       return;
     }
 
-    const hoursResult = applyCalculatedHoursToStaffing(state, sourceDateKey, sourceDateKey);
-    const nextState = runDailyRollover(hoursResult.state, {
+    const sourceDateKey = addDaysToDateKey(currentDateKey, -1);
+    if (nextState.systemMeta?.lastScheduledSourceDate === sourceDateKey) {
+      await persistFullState(env, nextState);
+      return;
+    }
+
+    const hoursResult = applyCalculatedHoursToStaffing(nextState, sourceDateKey, sourceDateKey);
+    nextState = runDailyRollover(hoursResult.state, {
       sourceDateKey,
       archiveDateKey: sourceDateKey,
       currentDateKey,
