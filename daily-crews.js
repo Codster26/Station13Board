@@ -424,4 +424,36 @@ async function initDailyCrewsPage() {
   renderDailyCrewsPage();
 }
 
+function isDailyCrewsFieldActive() {
+  const activeElement = document.activeElement;
+  return activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName);
+}
+
+let dailyCrewsRefreshPending = false;
+
+window.addEventListener("station13:persistence-updated", (event) => {
+  const changedKeys = event.detail?.changedKeys || [];
+  const shouldRefresh = changedKeys.some((key) => ["boardData", "dailyCrewsData", "weeklyAssignments", "systemMeta"].includes(key));
+
+  if (!shouldRefresh) {
+    return;
+  }
+
+  if (isDailyCrewsFieldActive()) {
+    dailyCrewsRefreshPending = true;
+    return;
+  }
+
+  renderDailyCrewsPage();
+});
+
+document.addEventListener("focusout", () => {
+  if (!dailyCrewsRefreshPending) {
+    return;
+  }
+
+  dailyCrewsRefreshPending = false;
+  window.setTimeout(renderDailyCrewsPage, 0);
+});
+
 initDailyCrewsPage();

@@ -122,4 +122,40 @@ async function initManagePage() {
   writeListsToForm(loadBoardData());
 }
 
+function isManageFieldActive() {
+  const activeElement = document.activeElement;
+  return activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName);
+}
+
+let manageRefreshPending = false;
+
+function refreshManageFromPersistence() {
+  writeListsToForm(loadBoardData());
+  showStatus("Updated from another screen.");
+}
+
+window.addEventListener("station13:persistence-updated", (event) => {
+  const changedKeys = event.detail?.changedKeys || [];
+
+  if (!changedKeys.includes("boardData")) {
+    return;
+  }
+
+  if (isManageFieldActive()) {
+    manageRefreshPending = true;
+    return;
+  }
+
+  refreshManageFromPersistence();
+});
+
+document.addEventListener("focusout", () => {
+  if (!manageRefreshPending) {
+    return;
+  }
+
+  manageRefreshPending = false;
+  window.setTimeout(refreshManageFromPersistence, 0);
+});
+
 initManagePage();

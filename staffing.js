@@ -237,4 +237,36 @@ async function initStaffingPage() {
   renderStaffingTable();
 }
 
+function isStaffingFieldActive() {
+  const activeElement = document.activeElement;
+  return activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName);
+}
+
+let staffingRefreshPending = false;
+
+window.addEventListener("station13:persistence-updated", (event) => {
+  const changedKeys = event.detail?.changedKeys || [];
+  const shouldRefresh = changedKeys.some((key) => ["boardData", "staffingHours", "systemMeta"].includes(key));
+
+  if (!shouldRefresh) {
+    return;
+  }
+
+  if (isStaffingFieldActive()) {
+    staffingRefreshPending = true;
+    return;
+  }
+
+  renderStaffingTable();
+});
+
+document.addEventListener("focusout", () => {
+  if (!staffingRefreshPending) {
+    return;
+  }
+
+  staffingRefreshPending = false;
+  window.setTimeout(renderStaffingTable, 0);
+});
+
 initStaffingPage();

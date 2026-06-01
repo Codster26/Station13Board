@@ -350,4 +350,36 @@ async function initArchivedPage() {
   renderArchivedPage();
 }
 
+function isArchivedFieldActive() {
+  const activeElement = document.activeElement;
+  return activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName);
+}
+
+let archivedRefreshPending = false;
+
+window.addEventListener("station13:persistence-updated", (event) => {
+  const changedKeys = event.detail?.changedKeys || [];
+  const shouldRefresh = changedKeys.some((key) => ["boardData", "archivedAssignments", "systemMeta"].includes(key));
+
+  if (!shouldRefresh) {
+    return;
+  }
+
+  if (isArchivedFieldActive()) {
+    archivedRefreshPending = true;
+    return;
+  }
+
+  renderArchivedPage();
+});
+
+document.addEventListener("focusout", () => {
+  if (!archivedRefreshPending) {
+    return;
+  }
+
+  archivedRefreshPending = false;
+  window.setTimeout(renderArchivedPage, 0);
+});
+
 initArchivedPage();

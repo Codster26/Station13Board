@@ -351,4 +351,36 @@ async function initWeeklyPage() {
   renderWeeklyPage();
 }
 
+function isWeeklyFieldActive() {
+  const activeElement = document.activeElement;
+  return activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName);
+}
+
+let weeklyRefreshPending = false;
+
+window.addEventListener("station13:persistence-updated", (event) => {
+  const changedKeys = event.detail?.changedKeys || [];
+  const shouldRefresh = changedKeys.some((key) => ["boardData", "weeklyAssignments", "systemMeta"].includes(key));
+
+  if (!shouldRefresh) {
+    return;
+  }
+
+  if (isWeeklyFieldActive()) {
+    weeklyRefreshPending = true;
+    return;
+  }
+
+  renderWeeklyPage();
+});
+
+document.addEventListener("focusout", () => {
+  if (!weeklyRefreshPending) {
+    return;
+  }
+
+  weeklyRefreshPending = false;
+  window.setTimeout(renderWeeklyPage, 0);
+});
+
 initWeeklyPage();

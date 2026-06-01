@@ -718,4 +718,42 @@ async function initBoardPage() {
   renderDailyCalendar();
 }
 
+function isBoardFieldActive() {
+  const activeElement = document.activeElement;
+  return activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName);
+}
+
+let boardRefreshPending = false;
+
+function refreshBoardFromPersistence() {
+  renderApparatusCards();
+  populateBoardDropdowns();
+  renderDailyCalendar();
+}
+
+window.addEventListener("station13:persistence-updated", (event) => {
+  const changedKeys = event.detail?.changedKeys || [];
+  const shouldRefresh = changedKeys.some((key) => ["boardData", "weeklyAssignments", "systemMeta"].includes(key));
+
+  if (!shouldRefresh) {
+    return;
+  }
+
+  if (isBoardFieldActive()) {
+    boardRefreshPending = true;
+    return;
+  }
+
+  refreshBoardFromPersistence();
+});
+
+document.addEventListener("focusout", () => {
+  if (!boardRefreshPending) {
+    return;
+  }
+
+  boardRefreshPending = false;
+  window.setTimeout(refreshBoardFromPersistence, 0);
+});
+
 initBoardPage();
