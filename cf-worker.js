@@ -1,0 +1,1271 @@
+import { DurableObject } from "cloudflare:workers";
+
+const DEFAULT_STATE = {
+  boardData: null,
+  weeklyAssignments: null,
+  archivedAssignments: null,
+  dailyCrewsData: null,
+  staffingHours: null,
+  systemMeta: {
+    lastScheduledSourceDate: null,
+    displayDateKey: null,
+    lastWeeklyExportDate: null,
+    lastDailyCrewBoardSyncKey: null,
+    persistenceVersions: {}
+  }
+};
+
+const TIME_ZONE = "America/New_York";
+const GOOGLE_DRIVE_ROOT_FOLDER_ID = "0ADMA0rIWAkuDUk9PVA";
+const SHIFT_WINDOWS = {
+  a: { start: 0, end: 6 },
+  b: { start: 6, end: 12 },
+  c: { start: 12, end: 18 },
+  d: { start: 18, end: 24 }
+};
+const DAILY_CREW_SHIFT_BY_HOUR = [
+  { id: "a", hours: ["0000", "0100", "0200", "0300", "0400", "0500"] },
+  { id: "b", hours: ["0600", "0700", "0800", "0900", "1000", "1100"] },
+  { id: "c", hours: ["1200", "1300", "1400", "1500", "1600", "1700"] },
+  { id: "d", hours: ["1800", "1900", "2000", "2100", "2200", "2300"] }
+];
+const DAILY_CREW_APPARATUS_SLOTS = [
+  { sourceId: "engine", targetId: "slot1", defaultType: "engine132" },
+  { sourceId: "tower", targetId: "slot2", defaultType: "tower13" },
+  { sourceId: "rescue", targetId: "slot3", defaultType: "rescue13" }
+];
+const DAILY_CREW_APPARATUS_TYPES = {
+  engine132: ["driver", "officer", "nozzle", "layout", "backup", "support"],
+  engine135: ["driver", "officer", "nozzle", "layout", "backup", "support"],
+  tower13: ["driver", "officer", "bar", "ovm", "can", "roof"],
+  rescue13: ["driver", "officer", "bar", "ovm", "can", "roof"]
+};
+const DAILY_CREW_ALL_POSITIONS = Array.from(new Set(Object.values(DAILY_CREW_APPARATUS_TYPES).flat()));
+
+function getDailyCrewApparatusBaseType(typeId, fallbackType = "engine132") {
+  const normalized = String(typeId || "");
+  if (DAILY_CREW_APPARATUS_TYPES[normalized]) {
+    return normalized;
+  }
+  if (normalized.startsWith("tower13-custom-")) {
+    return "tower13";
+  }
+  if (normalized.startsWith("rescue13-custom-")) {
+    return "rescue13";
+  }
+  if (normalized.startsWith("engine135-custom-")) {
+    return "engine135";
+  }
+  if (normalized.startsWith("engine132-custom-")) {
+    return "engine132";
+  }
+  return DAILY_CREW_APPARATUS_TYPES[fallbackType] ? fallbackType : "engine132";
+}
+
+function getDatePartsInTimeZone(date, timeZone = TIME_ZONE) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(date);
+  const read = (type) => parts.find((part) => part.type === type)?.value || "";
+  return {
+    year: read("year"),
+    month: read("month"),
+    day: read("day"),
+    hour: read("hour"),
+    minute: read("minute")
+  };
+}
+
+function getDateKeyInTimeZone(date, timeZone = TIME_ZONE) {
+  const parts = getDatePartsInTimeZone(date, timeZone);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function normalizeScheduledHour(hour) {
+  const parsed = Number(hour);
+  if (!Number.isFinite(parsed)) {
+    return "0000";
+  }
+  return `${String(parsed % 24).padStart(2, "0")}00`;
+}
+
+function getDailyCrewShiftForHour(hourLabel) {
+  return DAILY_CREW_SHIFT_BY_HOUR.find((shift) => shift.hours.includes(hourLabel)) || null;
+}
+
+function addDaysToDateKey(dateKey, offset) {
+  const source = new Date(`${dateKey}T00:00:00Z`);
+  source.setUTCDate(source.getUTCDate() + offset);
+  const year = source.getUTCFullYear();
+  const month = String(source.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(source.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getVisibleArchivedDateKeys(referenceDateKey) {
+  return Array.from({ length: 7 }, (_, index) => addDaysToDateKey(referenceDateKey, -(index + 1)));
+}
+
+function getVisibleStaffingDateKeys(referenceDateKey) {
+  return Array.from({ length: 7 }, (_, index) => addDaysToDateKey(referenceDateKey, -(index + 1)));
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function stampPersistenceVersions(state, keys = Object.keys(DEFAULT_STATE).filter((key) => key !== "systemMeta")) {
+  const stampedState = clone({
+    ...DEFAULT_STATE,
+    ...(state || {}),
+    systemMeta: {
+      ...DEFAULT_STATE.systemMeta,
+      ...(state?.systemMeta || {})
+    }
+  });
+  const now = Date.now();
+
+  stampedState.systemMeta = {
+    ...stampedState.systemMeta,
+    persistenceVersions: {
+      ...(stampedState.systemMeta.persistenceVersions || {})
+    }
+  };
+
+  keys.forEach((key) => {
+    if (key === "systemMeta" || !Object.prototype.hasOwnProperty.call(DEFAULT_STATE, key)) {
+      return;
+    }
+
+    stampedState.systemMeta.persistenceVersions[key] = now;
+  });
+
+  return stampedState;
+}
+
+function getMonthFolderLabel(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  const monthNumber = date.getMonth() + 1;
+  const monthName = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
+  return `${monthNumber} - ${monthName}`;
+}
+
+function getWeekNumberForDateKey(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function formatExportDateLabel(dateKey) {
+  const [year, month, day] = dateKey.split("-");
+  return `${month}/${day}/${year.slice(2)}`;
+}
+
+function buildExportFilename(referenceDateKey, suffix) {
+  return `${formatExportDateLabel(referenceDateKey)} Week ${getWeekNumberForDateKey(referenceDateKey)} ${suffix}.pdf`;
+}
+
+function getPublicBaseUrl(request, env) {
+  if (request) {
+    const url = new URL(request.url);
+    return `${url.protocol}//${url.host}`;
+  }
+
+  if (env.PUBLIC_SITE_URL) {
+    return env.PUBLIC_SITE_URL.replace(/\/+$/, "");
+  }
+
+  throw new Error("PUBLIC_SITE_URL is not configured for scheduled PDF exports.");
+}
+
+async function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function launchBrowserWithRetry(env, attempts = 3) {
+  let lastError;
+  const { default: puppeteer } = await import("@cloudflare/puppeteer");
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await puppeteer.launch(env.BROWSER);
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || error || "");
+      const isRateLimit = message.includes("429") || message.toLowerCase().includes("rate limit");
+      if (!isRateLimit || attempt === attempts) {
+        throw error;
+      }
+      await delay(1500 * attempt);
+    }
+  }
+
+  throw lastError;
+}
+
+async function renderPdfFromPage(browser, targetUrl, selector, zoom, extraCss = "") {
+  const page = await browser.newPage();
+
+  try {
+    await page.goto(targetUrl, { waitUntil: "networkidle0" });
+    await page.waitForSelector(selector, { timeout: 30000 });
+    await page.addStyleTag({
+      content: `
+        html,
+        body {
+          min-height: 0 !important;
+          height: auto !important;
+        }
+        body::before,
+        .nav-menu,
+        .menu-toggle,
+        .manage-actions {
+          display: none !important;
+        }
+        .board-page .page-shell,
+        .staffing-page .page-shell,
+        .page-shell,
+        .board-layout,
+        .staffing-card,
+        .daily-calendar-card,
+        .daily-calendar-wrap {
+          min-height: 0 !important;
+          height: auto !important;
+        }
+        .page-shell {
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .hero {
+          margin-bottom: 14px !important;
+        }
+        body {
+          zoom: ${zoom};
+        }
+        ${extraCss}
+      `
+    });
+    await page.emulateMediaType("screen");
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+    const dimensions = await page.$eval(selector, (element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        width: Math.ceil(rect.width),
+        height: Math.ceil(rect.height)
+      };
+    });
+
+    const widthInches = Math.max(8.5, dimensions.width / 96);
+    const heightInches = Math.max(1, dimensions.height / 96);
+
+    return await page.pdf({
+      printBackground: true,
+      width: `${widthInches}in`,
+      height: `${heightInches}in`,
+      margin: {
+        top: "0in",
+        right: "0in",
+        bottom: "0in",
+        left: "0in"
+      }
+    });
+  } finally {
+    await page.close();
+  }
+}
+
+function pemToArrayBuffer(pem) {
+  const normalized = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s+/g, "");
+  const binary = atob(normalized);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+function base64UrlEncode(input) {
+  const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function getGoogleAccessToken(env) {
+  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    throw new Error("Google Drive credentials are not configured.");
+  }
+
+  const credentials = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const header = { alg: "RS256", typ: "JWT" };
+  const claimSet = {
+    iss: credentials.client_email,
+    scope: "https://www.googleapis.com/auth/drive.file",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: nowSeconds + 3600,
+    iat: nowSeconds
+  };
+
+  const unsignedToken = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(claimSet))}`;
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToArrayBuffer(credentials.private_key),
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: "SHA-256"
+    },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsignedToken));
+  const jwt = `${unsignedToken}.${base64UrlEncode(new Uint8Array(signature))}`;
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not authenticate with Google Drive.");
+  }
+
+  const tokenData = await response.json();
+  return tokenData.access_token;
+}
+
+async function findDriveFolder(accessToken, parentId, folderName) {
+  const query = [
+    `name='${folderName.replace(/'/g, "\\'")}'`,
+    "mimeType='application/vnd.google-apps.folder'",
+    "trashed=false",
+    `'${parentId}' in parents`
+  ].join(" and ");
+
+  const searchParams = new URLSearchParams({
+    q: query,
+    fields: "files(id,name)",
+    pageSize: "1",
+    includeItemsFromAllDrives: "true",
+    supportsAllDrives: "true"
+  });
+
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not look up Google Drive folders.");
+  }
+
+  const data = await response.json();
+  return data.files?.[0] || null;
+}
+
+async function createDriveFolder(accessToken, parentId, folderName) {
+  const response = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name: folderName,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId]
+    })
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Could not create Google Drive folder "${folderName}". ${details}`);
+  }
+
+  return response.json();
+}
+
+async function ensureDriveFolder(accessToken, parentId, folderName) {
+  const existing = await findDriveFolder(accessToken, parentId, folderName);
+  if (existing) {
+    return existing.id;
+  }
+
+  const created = await createDriveFolder(accessToken, parentId, folderName);
+  return created.id;
+}
+
+async function uploadDriveFile(accessToken, folderId, filename, bytes, mimeType = "application/pdf") {
+  const boundary = `station13board-${crypto.randomUUID()}`;
+  const metadata = {
+    name: filename,
+    parents: [folderId]
+  };
+
+  const prefix =
+    `--${boundary}\r\n` +
+    "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+    `${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType}\r\n\r\n`;
+  const suffix = `\r\n--${boundary}--`;
+
+  const body = new Uint8Array(
+    new TextEncoder().encode(prefix).length +
+    bytes.length +
+    new TextEncoder().encode(suffix).length
+  );
+  let offset = 0;
+  const prefixBytes = new TextEncoder().encode(prefix);
+  body.set(prefixBytes, offset);
+  offset += prefixBytes.length;
+  body.set(bytes, offset);
+  offset += bytes.length;
+  const suffixBytes = new TextEncoder().encode(suffix);
+  body.set(suffixBytes, offset);
+
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`
+    },
+    body
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Could not upload "${filename}" to Google Drive. ${details}`);
+  }
+
+  return response.json();
+}
+
+async function exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDateKey) {
+  const accessToken = await getGoogleAccessToken(env);
+  const yearFolderId = await ensureDriveFolder(accessToken, GOOGLE_DRIVE_ROOT_FOLDER_ID, referenceDateKey.slice(0, 4));
+  const monthFolderId = await ensureDriveFolder(accessToken, yearFolderId, getMonthFolderLabel(referenceDateKey));
+  const baseUrl = getPublicBaseUrl(request, env);
+  const browser = await launchBrowserWithRetry(env);
+  let staffingPdf;
+  let weeklyPdf;
+
+  try {
+    staffingPdf = await renderPdfFromPage(
+      browser,
+      `${baseUrl}/staffing.html?export=1`,
+      "#staffingTable",
+      0.58,
+      `
+        .staffing-card { box-shadow: none !important; }
+        .staffing-table th,
+        .staffing-table td {
+          padding: 4px 6px !important;
+          font-size: 0.72rem !important;
+        }
+        .hours-input {
+          font-size: 0.72rem !important;
+        }
+      `
+    );
+    weeklyPdf = await renderPdfFromPage(
+      browser,
+      `${baseUrl}/archived.html?export=1`,
+      "#archivedStack .daily-calendar-card",
+      0.5,
+      `
+        .daily-calendar-card { box-shadow: none !important; }
+        .weekly-stack { gap: 8px !important; }
+        .daily-calendar-table th,
+        .daily-calendar-table td {
+          padding: 3px 4px !important;
+          font-size: 0.72rem !important;
+        }
+        .dc-side-cell--today {
+          font-size: 0.84rem !important;
+        }
+        .dc-side-cell--date {
+          font-size: 0.64rem !important;
+          white-space: pre-line !important;
+        }
+      `
+    );
+  } finally {
+    await browser.close();
+  }
+
+  const staffingFilename = buildExportFilename(referenceDateKey, "Staffing Hours");
+  const weeklyFilename = buildExportFilename(referenceDateKey, "Archived Hours");
+
+  const staffingUpload = await uploadDriveFile(accessToken, monthFolderId, staffingFilename, new Uint8Array(staffingPdf));
+  const weeklyUpload = await uploadDriveFile(accessToken, monthFolderId, weeklyFilename, new Uint8Array(weeklyPdf));
+
+  return {
+    folderId: monthFolderId,
+    files: [
+      { name: staffingFilename, id: staffingUpload.id },
+      { name: weeklyFilename, id: weeklyUpload.id }
+    ]
+  };
+}
+
+function clearArchivedRecordsAfterExport(state) {
+  return clone({
+    ...DEFAULT_STATE,
+    ...(state || {}),
+    archivedAssignments: {},
+    systemMeta: {
+      ...DEFAULT_STATE.systemMeta,
+      ...(state?.systemMeta || {})
+    }
+  });
+}
+
+function runDailyRollover(state, {
+  sourceDateKey,
+  archiveDateKey = sourceDateKey,
+  currentDateKey,
+  nextDisplayDateKey = currentDateKey,
+  clearSourceWeekly = true,
+  pruneArchived = true
+}) {
+  const nextState = clone({
+    ...DEFAULT_STATE,
+    ...(state || {}),
+    systemMeta: {
+      ...DEFAULT_STATE.systemMeta,
+      ...(state?.systemMeta || {})
+    }
+  });
+
+  const weeklyAssignments = { ...(nextState.weeklyAssignments || {}) };
+  const archivedAssignments = { ...(nextState.archivedAssignments || {}) };
+  const sourcePrefix = `weekly-${sourceDateKey}-`;
+  const archivePrefix = `archived-${archiveDateKey}-`;
+
+  Object.entries(weeklyAssignments).forEach(([key, value]) => {
+    if (!key.startsWith(sourcePrefix)) {
+      return;
+    }
+
+    const suffix = key.slice(sourcePrefix.length);
+    archivedAssignments[`${archivePrefix}${suffix}`] = value;
+  });
+
+  if (clearSourceWeekly) {
+    Object.keys(weeklyAssignments).forEach((key) => {
+      if (key.startsWith(sourcePrefix)) {
+        delete weeklyAssignments[key];
+      }
+    });
+  }
+
+  if (pruneArchived && currentDateKey) {
+    const visibleArchivedKeys = new Set(getVisibleArchivedDateKeys(currentDateKey));
+    Object.keys(archivedAssignments).forEach((key) => {
+      const match = key.match(/^archived-(\d{4}-\d{2}-\d{2})-/);
+      if (!match) {
+        return;
+      }
+
+      if (!visibleArchivedKeys.has(match[1])) {
+        delete archivedAssignments[key];
+      }
+    });
+  }
+
+  nextState.weeklyAssignments = weeklyAssignments;
+  nextState.archivedAssignments = archivedAssignments;
+  nextState.systemMeta = {
+    ...(nextState.systemMeta || {}),
+    displayDateKey: nextDisplayDateKey || currentDateKey || null
+  };
+  return nextState;
+}
+
+export class StateStore extends DurableObject {
+  async fetch(request) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/internal/state" && request.method === "GET") {
+      const stored = await this.ctx.storage.get("app-state");
+      return Response.json({ ...DEFAULT_STATE, ...(stored || {}) });
+    }
+
+    if (url.pathname === "/internal/state" && request.method === "PUT") {
+      const body = await request.json();
+      await this.ctx.storage.put("app-state", { ...DEFAULT_STATE, ...(body || {}) });
+      return Response.json({ ok: true });
+    }
+
+    if (url.pathname.startsWith("/internal/state/") && request.method === "PUT") {
+      const key = decodeURIComponent(url.pathname.replace("/internal/state/", ""));
+      const stored = await this.ctx.storage.get("app-state");
+      const current = { ...DEFAULT_STATE, ...(stored || {}) };
+      current[key] = await request.json();
+      await this.ctx.storage.put("app-state", stampPersistenceVersions(current, [key]));
+      return Response.json({ ok: true });
+    }
+
+    return new Response("Not found", { status: 404 });
+  }
+}
+
+async function fetchCurrentState(env) {
+  if (!env.STATE_STORE) {
+    throw new Error("STATE_STORE Durable Object binding is not configured.");
+  }
+
+  const id = env.STATE_STORE.idFromName("station13-shared-state");
+  const stub = env.STATE_STORE.get(id);
+  const response = await stub.fetch("https://state.internal/internal/state");
+  if (!response.ok) {
+    throw new Error(`STATE_STORE returned ${response.status} while loading app state.`);
+  }
+  return response.json();
+}
+
+async function persistFullState(env, state) {
+  if (!env.STATE_STORE) {
+    throw new Error("STATE_STORE Durable Object binding is not configured.");
+  }
+
+  const id = env.STATE_STORE.idFromName("station13-shared-state");
+  const stub = env.STATE_STORE.get(id);
+  const response = await stub.fetch("https://state.internal/internal/state", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(stampPersistenceVersions(state))
+  });
+  if (!response.ok) {
+    throw new Error(`STATE_STORE returned ${response.status} while saving app state.`);
+  }
+}
+
+function buildErrorResponse(error, status = 500) {
+  return Response.json({
+    ok: false,
+    error: error?.message || "Station 13 worker error."
+  }, {
+    status,
+    headers: { "Cache-Control": "no-store" }
+  });
+}
+
+function buildRolloverSummary({ sourceDateKey, archiveDateKey, currentDateKey, state }) {
+  const sourcePrefix = `weekly-${sourceDateKey}-`;
+  const archivePrefix = `archived-${archiveDateKey}-`;
+  const weeklyCount = Object.keys(state.weeklyAssignments || {}).filter((key) => key.startsWith(sourcePrefix)).length;
+  const archivedCount = Object.keys(state.archivedAssignments || {}).filter((key) => key.startsWith(archivePrefix)).length;
+
+  return {
+    sourceDateKey,
+    archiveDateKey,
+    currentDateKey,
+    displayDateKey: state.systemMeta?.displayDateKey || null,
+    copiedEntries: weeklyCount,
+    archivedEntriesForTargetDate: archivedCount
+  };
+}
+
+function parseHourValue(rawValue) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return null;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function addHours(result, memberName, amount) {
+  if (!memberName || !amount || amount <= 0) {
+    return;
+  }
+
+  result[memberName] = (result[memberName] || 0) + amount;
+}
+
+function calculateRightColumnHours(shiftId, inValue, outValue) {
+  const window = SHIFT_WINDOWS[shiftId];
+  if (!window) {
+    return 0;
+  }
+
+  const inHour = parseHourValue(inValue);
+  const outHour = parseHourValue(outValue);
+
+  if (inHour !== null && outHour !== null) {
+    const clampedIn = Math.max(window.start, Math.min(window.end, inHour));
+    const clampedOut = Math.max(window.start, Math.min(window.end, outHour));
+
+    if (clampedOut >= clampedIn) {
+      return Math.max(0, clampedOut - clampedIn);
+    }
+
+    const firstSegment = Math.max(0, clampedOut - window.start);
+    const secondSegment = Math.max(0, window.end - clampedIn);
+    return firstSegment + secondSegment;
+  }
+
+  if (inHour !== null) {
+    return Math.max(0, window.end - Math.max(window.start, inHour));
+  }
+
+  if (outHour !== null) {
+    return Math.max(0, Math.min(window.end, outHour) - window.start);
+  }
+
+  return window.end - window.start;
+}
+
+function normalizeCommandMemberName(memberName) {
+  return String(memberName || "")
+    .split(" - ")[0]
+    .trim();
+}
+
+function calculateCommandHours(shiftId, inValue, outValue) {
+  const window = SHIFT_WINDOWS[shiftId];
+  if (!window) {
+    return 0;
+  }
+
+  const inHour = parseHourValue(inValue);
+  const outHour = parseHourValue(outValue);
+
+  if (inHour !== null && outHour !== null) {
+    if (outHour >= inHour) {
+      return Math.max(0, outHour - inHour);
+    }
+
+    const firstSegment = Math.max(0, outHour - window.start);
+    const secondSegment = Math.max(0, window.end - inHour);
+    return firstSegment + secondSegment;
+  }
+
+  if (inHour !== null) {
+    return Math.max(0, window.end - inHour);
+  }
+
+  if (outHour !== null) {
+    return Math.max(0, outHour - window.start);
+  }
+
+  return window.end - window.start;
+}
+
+function calculateDailyHoursFromWeekly(weeklyAssignments, sourceDateKey) {
+  const result = {};
+  const assignments = weeklyAssignments || {};
+
+  Object.keys(SHIFT_WINDOWS).forEach((shiftId) => {
+    const window = SHIFT_WINDOWS[shiftId];
+
+    for (let row = 0; row < 15; row += 1) {
+      const prefix = `weekly-${sourceDateKey}-${shiftId}-${row}`;
+      const leftMember = assignments[`${prefix}-member1`] || "";
+      const rightMember = assignments[`${prefix}-member2`] || "";
+      const inValue = assignments[`${prefix}-in`] || "";
+      const outValue = assignments[`${prefix}-out`] || "";
+
+      addHours(result, leftMember, window.end - window.start);
+      addHours(result, rightMember, calculateRightColumnHours(shiftId, inValue, outValue));
+    }
+
+    const commandMember = normalizeCommandMemberName(assignments[`weekly-${sourceDateKey}-command-${shiftId}-member`] || "");
+    const commandIn = assignments[`weekly-${sourceDateKey}-command-${shiftId}-in`] || "";
+    const commandOut = assignments[`weekly-${sourceDateKey}-command-${shiftId}-out`] || "";
+    addHours(result, commandMember, calculateCommandHours(shiftId, commandIn, commandOut));
+  });
+
+  return result;
+}
+
+function applyCalculatedHoursToStaffing(state, sourceDateKey, targetDateKey) {
+  const nextState = clone({
+    ...DEFAULT_STATE,
+    ...(state || {}),
+    systemMeta: {
+      ...DEFAULT_STATE.systemMeta,
+      ...(state?.systemMeta || {})
+    }
+  });
+
+  const staffingHours = clone(nextState.staffingHours || {});
+  const calculatedHours = calculateDailyHoursFromWeekly(nextState.weeklyAssignments || {}, sourceDateKey);
+
+  Object.keys(staffingHours).forEach((memberName) => {
+    if (staffingHours[memberName] && Object.prototype.hasOwnProperty.call(staffingHours[memberName], targetDateKey)) {
+      delete staffingHours[memberName][targetDateKey];
+      if (Object.keys(staffingHours[memberName]).length === 0) {
+        delete staffingHours[memberName];
+      }
+    }
+  });
+
+  Object.entries(calculatedHours).forEach(([memberName, hours]) => {
+    if (!staffingHours[memberName]) {
+      staffingHours[memberName] = {};
+    }
+    staffingHours[memberName][targetDateKey] = hours;
+  });
+
+  nextState.staffingHours = staffingHours;
+  return {
+    state: nextState,
+    calculatedHours
+  };
+}
+
+function shiftStaffingWindowForYesterday(nextState, currentDateKey, targetDateKey) {
+  const visibleStaffingKeys = getVisibleStaffingDateKeys(currentDateKey);
+  if (targetDateKey !== visibleStaffingKeys[0]) {
+    return nextState;
+  }
+
+  const staffingHours = clone(nextState.staffingHours || {});
+
+  Object.keys(staffingHours).forEach((memberName) => {
+    const memberHours = { ...(staffingHours[memberName] || {}) };
+
+    for (let index = visibleStaffingKeys.length - 1; index > 0; index -= 1) {
+      const destinationKey = visibleStaffingKeys[index];
+      const sourceKey = visibleStaffingKeys[index - 1];
+
+      if (Object.prototype.hasOwnProperty.call(memberHours, sourceKey)) {
+        memberHours[destinationKey] = memberHours[sourceKey];
+      } else {
+        delete memberHours[destinationKey];
+      }
+    }
+
+    delete memberHours[targetDateKey];
+
+    if (Object.keys(memberHours).length === 0) {
+      delete staffingHours[memberName];
+    } else {
+      staffingHours[memberName] = memberHours;
+    }
+  });
+
+  nextState.staffingHours = staffingHours;
+  return nextState;
+}
+
+function applyDailyCrewHourToRidingBoard(state, dateKey, hourLabel) {
+  const shift = getDailyCrewShiftForHour(hourLabel);
+  if (!shift) {
+    return {
+      state,
+      applied: false,
+      reason: "No Daily Crews shift matches this hour."
+    };
+  }
+
+  const syncKey = `${dateKey}-${hourLabel}`;
+  const currentState = clone({
+    ...DEFAULT_STATE,
+    ...(state || {}),
+    systemMeta: {
+      ...DEFAULT_STATE.systemMeta,
+      ...(state?.systemMeta || {})
+    }
+  });
+
+  if (currentState.systemMeta?.lastDailyCrewBoardSyncKey === syncKey) {
+    return {
+      state: currentState,
+      applied: false,
+      reason: "Daily Crews hour already synced."
+    };
+  }
+
+  const dailyCrewsData = currentState.dailyCrewsData || {};
+  const hasHourData = DAILY_CREW_APPARATUS_SLOTS.some((slot) => {
+    const typeKey = `${shift.id}-${hourLabel}-${slot.sourceId}-apparatus`;
+    if (dailyCrewsData[typeKey]) {
+      return true;
+    }
+
+    return DAILY_CREW_ALL_POSITIONS.some((positionId) => {
+      const value = dailyCrewsData[`${shift.id}-${hourLabel}-${slot.sourceId}-${positionId}`];
+      return String(value || "").trim();
+    });
+  });
+
+  if (!hasHourData) {
+    currentState.systemMeta = {
+      ...(currentState.systemMeta || {}),
+      lastDailyCrewBoardSyncKey: syncKey
+    };
+    return {
+      state: currentState,
+      applied: false,
+      reason: "No Daily Crews entries were filled for this hour."
+    };
+  }
+
+  const boardData = clone(currentState.boardData || {});
+  const assignments = { ...(boardData.assignments || {}) };
+  const apparatusSlots = { ...(assignments.__apparatus_slots || {}) };
+
+  DAILY_CREW_APPARATUS_SLOTS.forEach((slot) => {
+    const sourceType = dailyCrewsData[`${shift.id}-${hourLabel}-${slot.sourceId}-apparatus`] || slot.defaultType;
+    const apparatusType = getDailyCrewApparatusBaseType(sourceType, slot.defaultType);
+    apparatusSlots[slot.targetId] = sourceType || apparatusType;
+
+    DAILY_CREW_ALL_POSITIONS.forEach((positionId) => {
+      delete assignments[`rig-${slot.targetId}-${positionId}`];
+    });
+
+    DAILY_CREW_APPARATUS_TYPES[apparatusType].forEach((positionId) => {
+      const sourceKey = `${shift.id}-${hourLabel}-${slot.sourceId}-${positionId}`;
+      const targetKey = `rig-${slot.targetId}-${positionId}`;
+      const value = String(dailyCrewsData[sourceKey] || "").trim();
+      assignments[targetKey] = value || "Open Assignment";
+    });
+  });
+
+  assignments.__apparatus_slots = apparatusSlots;
+  assignments.__apparatus_layout_version = "2";
+
+  currentState.boardData = {
+    ...boardData,
+    assignments
+  };
+  currentState.systemMeta = {
+    ...(currentState.systemMeta || {}),
+    lastDailyCrewBoardSyncKey: syncKey
+  };
+
+  return {
+    state: currentState,
+    applied: true,
+    shiftId: shift.id,
+    hourLabel
+  };
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/api/health" && request.method === "GET") {
+      try {
+        const state = await fetchCurrentState(env);
+        return Response.json({
+          ok: true,
+          stateKeys: Object.keys(state || {}),
+          hasBoardData: !!state?.boardData,
+          hasWeeklyAssignments: !!state?.weeklyAssignments
+        }, {
+          headers: { "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return buildErrorResponse(error);
+      }
+    }
+
+    if (url.pathname === "/api/state" && request.method === "GET") {
+      try {
+        const state = await fetchCurrentState(env);
+        return Response.json(state, {
+          headers: { "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return buildErrorResponse(error);
+      }
+    }
+
+    if (url.pathname.startsWith("/api/state/") && request.method === "PUT") {
+      const key = decodeURIComponent(url.pathname.replace("/api/state/", ""));
+      if (!Object.prototype.hasOwnProperty.call(DEFAULT_STATE, key)) {
+        return Response.json({ error: "Unknown state key" }, { status: 404 });
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch (error) {
+        return Response.json({ error: "Invalid JSON payload" }, { status: 400 });
+      }
+
+      try {
+        if (!env.STATE_STORE) {
+          throw new Error("STATE_STORE Durable Object binding is not configured.");
+        }
+
+        const id = env.STATE_STORE.idFromName("station13-shared-state");
+        const stub = env.STATE_STORE.get(id);
+        const response = await stub.fetch(`https://state.internal/internal/state/${encodeURIComponent(key)}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          throw new Error(`STATE_STORE returned ${response.status} while saving ${key}.`);
+        }
+        return Response.json({ ok: true }, {
+          headers: { "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return buildErrorResponse(error);
+      }
+    }
+
+    if (url.pathname === "/api/admin/rollover-preview" && request.method === "GET") {
+      const now = new Date();
+      const sourceDateKey = url.searchParams.get("sourceDateKey") || getDateKeyInTimeZone(now);
+      const currentDateKey = getDateKeyInTimeZone(now);
+      const state = await fetchCurrentState(env);
+      return Response.json(buildRolloverSummary({
+        sourceDateKey,
+        archiveDateKey: sourceDateKey,
+        currentDateKey,
+        state
+      }));
+    }
+
+    if (url.pathname === "/api/admin/rollover" && request.method === "POST") {
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (error) {
+        body = {};
+      }
+
+      const now = new Date();
+      const currentDateKey = getDateKeyInTimeZone(now);
+      const sourceDateKey = body.sourceDateKey || currentDateKey;
+      const state = await fetchCurrentState(env);
+      const hoursResult = applyCalculatedHoursToStaffing(
+        state,
+        sourceDateKey,
+        body.targetDateKey || sourceDateKey
+      );
+      const nextState = runDailyRollover(hoursResult.state, {
+        sourceDateKey,
+        archiveDateKey: body.archiveDateKey || sourceDateKey,
+        currentDateKey,
+        nextDisplayDateKey: body.nextDisplayDateKey || currentDateKey,
+        clearSourceWeekly: body.clearSourceWeekly !== false,
+        pruneArchived: body.pruneArchived !== false
+      });
+      await persistFullState(env, nextState);
+
+      return Response.json({
+        ok: true,
+        summary: buildRolloverSummary({
+          sourceDateKey,
+          archiveDateKey: body.archiveDateKey || sourceDateKey,
+          currentDateKey,
+          state: nextState
+        })
+      });
+    }
+
+    if (url.pathname === "/api/admin/calculate-hours" && request.method === "POST") {
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (error) {
+        body = {};
+      }
+
+      const now = new Date();
+      const currentDateKey = getDateKeyInTimeZone(now);
+      const sourceDateKey = body.sourceDateKey || currentDateKey;
+      const targetDateKey = body.targetDateKey || sourceDateKey;
+      const state = await fetchCurrentState(env);
+      let nextState = clone({
+        ...DEFAULT_STATE,
+        ...(state || {}),
+        systemMeta: {
+          ...DEFAULT_STATE.systemMeta,
+          ...(state?.systemMeta || {})
+        }
+      });
+
+      if (body.shiftYesterdayColumn === true) {
+        nextState = shiftStaffingWindowForYesterday(nextState, currentDateKey, targetDateKey);
+      }
+
+      const result = applyCalculatedHoursToStaffing(nextState, sourceDateKey, targetDateKey);
+      await persistFullState(env, result.state);
+
+      return Response.json({
+        ok: true,
+        sourceDateKey,
+        targetDateKey,
+        shiftedYesterdayColumn: body.shiftYesterdayColumn === true,
+        calculatedHours: result.calculatedHours
+      });
+    }
+
+    if (url.pathname === "/api/admin/sync-daily-crews-to-board" && request.method === "POST") {
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (error) {
+        body = {};
+      }
+
+      const now = new Date();
+      const parts = getDatePartsInTimeZone(now);
+      const currentDateKey = `${parts.year}-${parts.month}-${parts.day}`;
+      const state = await fetchCurrentState(env);
+      const dateKey = body.dateKey || currentDateKey;
+      const hourLabel = body.hourLabel || normalizeScheduledHour(parts.hour);
+      const sourceState = body.force === true
+        ? {
+            ...state,
+            systemMeta: {
+              ...(state.systemMeta || {}),
+              lastDailyCrewBoardSyncKey: null
+            }
+          }
+        : state;
+      const result = applyDailyCrewHourToRidingBoard(sourceState, dateKey, hourLabel);
+      await persistFullState(env, result.state);
+
+      return Response.json({
+        ok: true,
+        dateKey,
+        hourLabel,
+        applied: result.applied,
+        reason: result.reason || null
+      });
+    }
+
+    if (url.pathname === "/api/admin/export-weekly-records" && request.method === "POST") {
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (error) {
+        body = {};
+      }
+
+      const now = new Date();
+      const currentDateKey = getDateKeyInTimeZone(now);
+      const state = await fetchCurrentState(env);
+      const referenceDateKey = body.referenceDateKey || state?.systemMeta?.displayDateKey || currentDateKey;
+      try {
+        const result = await exportWeeklyRecordsToGoogleDrive(request, env, state, referenceDateKey);
+
+        const nextState = clone({
+          ...clearArchivedRecordsAfterExport(state),
+          systemMeta: {
+            ...DEFAULT_STATE.systemMeta,
+            ...(state?.systemMeta || {}),
+            lastWeeklyExportDate: referenceDateKey
+          }
+        });
+        await persistFullState(env, nextState);
+
+        return Response.json({
+          ok: true,
+          referenceDateKey,
+          archivedReset: true,
+          ...result
+        });
+      } catch (error) {
+        return Response.json({
+          ok: false,
+          error: error.message || "Could not export weekly records."
+        }, { status: 500 });
+      }
+    }
+
+    return env.ASSETS.fetch(request);
+  },
+
+  async scheduled(controller, env, ctx) {
+    const now = new Date(controller.scheduledTime || Date.now());
+    const parts = getDatePartsInTimeZone(now);
+    const currentDateKey = `${parts.year}-${parts.month}-${parts.day}`;
+    const currentHourLabel = normalizeScheduledHour(parts.hour);
+    const state = await fetchCurrentState(env);
+    const dailyCrewSync = applyDailyCrewHourToRidingBoard(state, currentDateKey, currentHourLabel);
+    let nextState = dailyCrewSync.state;
+
+    if (currentHourLabel !== "0000") {
+      await persistFullState(env, nextState);
+      return;
+    }
+
+    const sourceDateKey = addDaysToDateKey(currentDateKey, -1);
+    if (nextState.systemMeta?.lastScheduledSourceDate === sourceDateKey) {
+      await persistFullState(env, nextState);
+      return;
+    }
+
+    const hoursResult = applyCalculatedHoursToStaffing(nextState, sourceDateKey, sourceDateKey);
+    nextState = runDailyRollover(hoursResult.state, {
+      sourceDateKey,
+      archiveDateKey: sourceDateKey,
+      currentDateKey,
+      nextDisplayDateKey: currentDateKey,
+      clearSourceWeekly: true,
+      pruneArchived: true
+    });
+
+    nextState.systemMeta = {
+      ...(nextState.systemMeta || {}),
+      lastScheduledSourceDate: sourceDateKey
+    };
+
+    ctx.waitUntil((async () => {
+      let finalState = nextState;
+
+      if (new Date(`${currentDateKey}T00:00:00`).getDay() === 0 && finalState.systemMeta?.lastWeeklyExportDate !== currentDateKey) {
+        try {
+          await exportWeeklyRecordsToGoogleDrive(null, env, finalState, currentDateKey);
+          finalState = clearArchivedRecordsAfterExport({
+            ...finalState,
+            systemMeta: {
+              ...(finalState.systemMeta || {}),
+              lastWeeklyExportDate: currentDateKey
+            }
+          });
+        } catch (error) {
+          console.error("Weekly Google Drive export failed:", error);
+        }
+      }
+
+      await persistFullState(env, finalState);
+    })());
+  }
+};

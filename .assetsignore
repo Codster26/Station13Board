@@ -1,0 +1,15 @@
+.git
+.git/**
+node_modules
+node_modules/**
+Project Status
+Project Status/**
+server-data
+server-data/**
+server.js
+package.json
+package-lock.json
+bun.lock
+bun.lockb
+wrangler.jsonc
+cf-worker.js

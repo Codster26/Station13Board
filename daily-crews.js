@@ -1,0 +1,543 @@
+const DAILY_CREWS_STORAGE_KEY = "station13-daily-crews";
+const DAILY_CREWS_WEEKLY_STORAGE_KEY = "station13-weekly-calendar";
+const dailyCrewsSlotCount = 15;
+
+const dailyCrewShifts = [
+  { id: "a", label: "A Shift", rangeLabel: "0000 - 0600", hours: ["0000", "0100", "0200", "0300", "0400", "0500"] },
+  { id: "b", label: "B Shift", rangeLabel: "0600 - 1200", hours: ["0600", "0700", "0800", "0900", "1000", "1100"] },
+  { id: "c", label: "C Shift", rangeLabel: "1200 - 1800", hours: ["1200", "1300", "1400", "1500", "1600", "1700"] },
+  { id: "d", label: "D Shift", rangeLabel: "1800 - 0000", hours: ["1800", "1900", "2000", "2100", "2200", "2300"] }
+];
+
+const dailyCrewBaseApparatusTypes = {
+  engine132: {
+    id: "engine132",
+    title: "Engine 13-2",
+    modifier: "apparatus-card--engine",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "engineDriver" },
+      { id: "officer", label: "Officer", poolKey: "officer" },
+      { id: "nozzle", label: "Nozzle", poolKey: "engine" },
+      { id: "layout", label: "Layout", poolKey: "engine" },
+      { id: "backup", label: "Backup", poolKey: "engine" },
+      { id: "support", label: "Support", poolKey: "engine" }
+    ]
+  },
+  engine135: {
+    id: "engine135",
+    title: "Engine 13-5",
+    modifier: "apparatus-card--engine",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "engineDriver" },
+      { id: "officer", label: "Officer", poolKey: "officer" },
+      { id: "nozzle", label: "Nozzle", poolKey: "engine" },
+      { id: "layout", label: "Layout", poolKey: "engine" },
+      { id: "backup", label: "Backup", poolKey: "engine" },
+      { id: "support", label: "Support", poolKey: "engine" }
+    ]
+  },
+  tower13: {
+    id: "tower13",
+    title: "Tower 13",
+    modifier: "apparatus-card--tower",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "towerDriver" },
+      { id: "officer", label: "Officer", poolKey: "officer" },
+      { id: "bar", label: "Bar", poolKey: "truck" },
+      { id: "ovm", label: "OVM", poolKey: "ovm" },
+      { id: "can", label: "Can", poolKey: "truck" },
+      { id: "roof", label: "Roof", poolKey: "truck" }
+    ]
+  },
+  rescue13: {
+    id: "rescue13",
+    title: "Rescue 13",
+    modifier: "apparatus-card--rescue",
+    positions: [
+      { id: "driver", label: "Driver", poolKey: "rescueDriver" },
+      { id: "officer", label: "Officer", poolKey: "officer" },
+      { id: "bar", label: "Bar", poolKey: "truck" },
+      { id: "ovm", label: "OVM", poolKey: "ovm" },
+      { id: "can", label: "Can", poolKey: "truck" },
+      { id: "roof", label: "Roof", poolKey: "truck" }
+    ]
+  }
+};
+
+const knownDailyCrewApparatusLabelToId = Object.fromEntries(
+  Object.values(dailyCrewBaseApparatusTypes).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
+);
+
+function slugDailyCrewApparatusTitle(title) {
+  return String(title || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function inferDailyCrewBaseApparatusId(title) {
+  const normalized = String(title || "").toLowerCase();
+  if (normalized.includes("tower") || normalized.includes("truck") || normalized.includes("ladder")) {
+    return "tower13";
+  }
+  if (normalized.includes("rescue") || normalized.includes("squad")) {
+    return "rescue13";
+  }
+  return "engine132";
+}
+
+function getDailyCrewManagedApparatusTypes(boardData) {
+  const colors = getApparatusColors(boardData);
+  const managedTypes = {};
+
+  getApparatusOptions(boardData).forEach((title) => {
+    const knownId = knownDailyCrewApparatusLabelToId[String(title).toLowerCase()];
+    const baseId = knownId || inferDailyCrewBaseApparatusId(title);
+    const id = knownId || `${baseId}-custom-${slugDailyCrewApparatusTitle(title)}`;
+    managedTypes[id] = {
+      ...dailyCrewBaseApparatusTypes[baseId],
+      id,
+      title,
+      color: colors[title] || colors[dailyCrewBaseApparatusTypes[baseId].title]
+    };
+  });
+
+  Object.entries(dailyCrewBaseApparatusTypes).forEach(([id, apparatus]) => {
+    if (!managedTypes[id]) {
+      managedTypes[id] = {
+        ...apparatus,
+        color: colors[apparatus.title]
+      };
+    }
+  });
+
+  return managedTypes;
+}
+
+function getDailyCrewApparatusLabelToId(apparatusTypes) {
+  return Object.fromEntries(
+    Object.values(apparatusTypes).map((apparatus) => [apparatus.title.toLowerCase(), apparatus.id])
+  );
+}
+
+const dailyCrewApparatusSlots = [
+  { id: "engine", defaultType: "engine132" },
+  { id: "tower", defaultType: "tower13" },
+  { id: "rescue", defaultType: "rescue13" }
+];
+
+function loadDailyCrewsData() {
+  if (window.storageService) {
+    return window.storageService.loadValue("dailyCrewsData", {}) || {};
+  }
+  try {
+    const raw = localStorage.getItem(DAILY_CREWS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveDailyCrewsData(data) {
+  if (window.storageService) {
+    window.storageService.saveValue("dailyCrewsData", data);
+    return;
+  }
+  localStorage.setItem(DAILY_CREWS_STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadDailyCrewsShiftAssignments() {
+  if (window.storageService) {
+    return window.storageService.loadValue("weeklyAssignments", {}) || {};
+  }
+  try {
+    const raw = localStorage.getItem(DAILY_CREWS_WEEKLY_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveDailyCrewsShiftAssignments(data) {
+  if (window.storageService) {
+    window.storageService.saveValue("weeklyAssignments", data);
+    return;
+  }
+  localStorage.setItem(DAILY_CREWS_WEEKLY_STORAGE_KEY, JSON.stringify(data));
+}
+
+function getDailyCrewsTodayKey() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getDailyCrewsDateKey(offsetDays = 0) {
+  const overrideDateKey = window.storageService?.loadValue("systemMeta", {})?.displayDateKey;
+  const date = overrideDateKey ? new Date(`${overrideDateKey}T00:00:00`) : new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + offsetDays);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDailyCrewsDate(dateKey) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric"
+  }).format(new Date(`${dateKey}T00:00:00`));
+}
+
+function getDailyCrewPool(boardData, poolKey) {
+  if (poolKey === "activeMembers") {
+    return boardData.activeMembers || [];
+  }
+  return boardData.rolePools?.[poolKey] || [];
+}
+
+function getDailyCrewColorMap(boardData, poolKey) {
+  if (poolKey === "activeMembers") {
+    return boardData.colorRules?.activeMembers || {};
+  }
+  return boardData.colorRules?.[poolKey] || {};
+}
+
+function applyDailyCrewFill(select, colorMap) {
+  const fillColor = colorMap[select.value];
+  const textColor = fillColor ? getReadableTextColor(fillColor) : "";
+  select.style.backgroundColor = fillColor || "";
+  select.style.color = textColor || "";
+}
+
+function getDailyCrewApparatusType(savedData, shiftId, hour, slot, apparatusTypes) {
+  const savedType = savedData[`${shiftId}-${hour}-${slot.id}-apparatus`];
+  return apparatusTypes[savedType] ? savedType : slot.defaultType;
+}
+
+function applyDailyCrewsStatusColor(select) {
+  if (select.dataset.kind !== "crew") {
+    return;
+  }
+  const color = getShiftStatusColors()[select.value] || "#11734b";
+  const cell = select.closest(".daily-crews-summary-crew");
+  if (cell) {
+    cell.style.background = color;
+  }
+  select.style.color = "#ffffff";
+}
+
+function createDailyCrewsMirrorValue(kind, rawValue, colorMap = {}) {
+  const value = rawValue || (kind === "crew" ? "Not Staffed" : "");
+  const node = document.createElement("div");
+  node.className = "daily-crews-readonly";
+  node.textContent = value;
+
+  if (kind === "crew") {
+    node.classList.add("daily-crews-readonly--crew");
+    node.style.background = getShiftStatusColors()[value] || "#b10202";
+    node.style.color = "#ffffff";
+  } else if (kind === "command") {
+    node.classList.add("daily-crews-readonly--command");
+    const fillColor = colorMap[value];
+    if (fillColor) {
+      node.style.backgroundColor = fillColor;
+      node.style.color = getReadableTextColor(fillColor);
+    }
+  } else if (kind === "name") {
+    const fillColor = colorMap[value];
+    if (fillColor) {
+      node.style.backgroundColor = fillColor;
+      node.style.color = getReadableTextColor(fillColor);
+    }
+  }
+
+  return node;
+}
+
+function buildDailyCrewCell(boardData, savedData, shiftId, hour, slot, position) {
+  const row = document.createElement("div");
+  row.className = "daily-crews-row seat-row";
+
+  const label = document.createElement("span");
+  label.className = "daily-crews-role seat-role";
+  label.textContent = position.label;
+  row.appendChild(label);
+
+  const key = `${shiftId}-${hour}-${slot.id}-${position.id}`;
+  const poolKey = position.poolKey || position.pool;
+  const pool = uniqueNames(getDailyCrewPool(boardData, poolKey));
+  const colorMap = getDailyCrewColorMap(boardData, poolKey);
+  const selectedValue = pool.includes(savedData[key]) ? savedData[key] : "";
+  const field = createSearchCombobox({
+    className: "daily-crews-select seat-input",
+    options: pool,
+    value: selectedValue,
+    ariaLabel: key,
+    onCommit: (value, input) => {
+      if (value) {
+        savedData[key] = value;
+      } else {
+        delete savedData[key];
+      }
+      saveDailyCrewsData(savedData);
+      applyDailyCrewFill(input, colorMap);
+    }
+  });
+
+  applyDailyCrewFill(field.input, colorMap);
+  row.appendChild(field.root);
+  return row;
+}
+
+function buildDailyCrewUnit(boardData, savedData, shiftId, hour, slot) {
+  const apparatusTypes = getDailyCrewManagedApparatusTypes(boardData);
+  const apparatusOptions = getApparatusOptions(boardData);
+  const apparatusLabelToId = getDailyCrewApparatusLabelToId(apparatusTypes);
+  const typeId = getDailyCrewApparatusType(savedData, shiftId, hour, slot, apparatusTypes);
+  const apparatus = apparatusTypes[typeId] || apparatusTypes[slot.defaultType];
+  const unit = document.createElement("article");
+  unit.className = `daily-crews-unit apparatus-card ${apparatus.modifier}`;
+
+  const header = document.createElement("header");
+  header.className = "daily-crews-unit-header apparatus-header";
+  if (apparatus.color) {
+    header.style.background = apparatus.color;
+  }
+  const typeKey = `${shiftId}-${hour}-${slot.id}-apparatus`;
+  const headerField = createSearchCombobox({
+    className: "apparatus-header-input daily-crews-unit-header-input",
+    options: apparatusOptions,
+    value: apparatus.title,
+    ariaLabel: `${shiftId} ${hour} ${slot.id} apparatus`,
+    onCommit: (value, input) => {
+      const chosenType = apparatusLabelToId[String(value || "").toLowerCase()] || typeId;
+      const nextType = apparatusTypes[chosenType] ? chosenType : apparatus.id;
+      input.value = apparatusTypes[nextType].title;
+      if (nextType === typeId) {
+        return;
+      }
+      savedData[typeKey] = nextType;
+      saveDailyCrewsData(savedData);
+      renderDailyCrewsPage();
+    }
+  });
+  header.appendChild(headerField.root);
+  unit.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "daily-crews-unit-body seat-list";
+  apparatus.positions.forEach((position) => {
+    body.appendChild(buildDailyCrewCell(boardData, savedData, shiftId, hour, slot, position));
+  });
+  unit.appendChild(body);
+
+  return unit;
+}
+
+function buildDailyCrewHour(boardData, savedData, shiftId, hour) {
+  const column = document.createElement("section");
+  column.className = "daily-crews-hour";
+
+  const time = document.createElement("div");
+  time.className = "daily-crews-time";
+  time.textContent = hour;
+  column.appendChild(time);
+
+  dailyCrewApparatusSlots.forEach((slot) => {
+    column.appendChild(buildDailyCrewUnit(boardData, savedData, shiftId, hour, slot));
+  });
+
+  return column;
+}
+
+function buildDailyCrewsShiftMirrorPanel(boardData, shift, assignments, dateKey, dayLabel) {
+  const shell = document.createElement("div");
+  shell.className = "daily-crews-summary-shell";
+
+  const title = document.createElement("div");
+  title.className = "daily-crews-summary-title";
+  title.textContent = `${dayLabel} | ${formatDailyCrewsDate(dateKey)} | ${shift.id.toUpperCase()} - Shift ${shift.rangeLabel}`;
+  shell.appendChild(title);
+
+  const table = document.createElement("table");
+  table.className = "daily-crews-summary-table";
+  shell.appendChild(table);
+
+  const activeMembers = boardData.activeMembers || [];
+  const command13Members = boardData.command13Members || [];
+  const activeMemberColors = boardData.colorRules?.activeMembers || {};
+  const command13Colors = boardData.colorRules?.command13 || {};
+
+  const headerRow = document.createElement("tr");
+  ["Member", "In", "Member", "Out"].forEach((label) => {
+    const th = document.createElement("th");
+    th.className = "daily-crews-summary-column";
+    th.textContent = label;
+    headerRow.appendChild(th);
+  });
+  table.appendChild(headerRow);
+
+  const crewRow = document.createElement("tr");
+  const crewCell = document.createElement("th");
+  crewCell.className = "daily-crews-summary-crew";
+  crewCell.colSpan = 4;
+  const crewKey = `weekly-${dateKey}-crew-${shift.id}`;
+  const crewValue = assignments[crewKey] || "Not Staffed";
+  crewCell.appendChild(createDailyCrewsMirrorValue("crew", crewValue));
+  crewRow.appendChild(crewCell);
+  table.appendChild(crewRow);
+
+  for (let row = 0; row < dailyCrewsSlotCount; row += 1) {
+    const tr = document.createElement("tr");
+    const prefix = `weekly-${dateKey}-${shift.id}-${row}`;
+    const cells = [
+      { kind: "name", key: `${prefix}-member1`, colorMap: activeMemberColors },
+      { kind: "time", key: `${prefix}-in` },
+      { kind: "name", key: `${prefix}-member2`, colorMap: activeMemberColors },
+      { kind: "time", key: `${prefix}-out` }
+    ];
+
+    cells.forEach((cellConfig) => {
+      const td = document.createElement("td");
+      td.className = "daily-crews-summary-cell";
+      td.appendChild(createDailyCrewsMirrorValue(cellConfig.kind, assignments[cellConfig.key] || "", cellConfig.colorMap || {}));
+      tr.appendChild(td);
+    });
+
+    table.appendChild(tr);
+  }
+
+  const commandRow = document.createElement("tr");
+  commandRow.className = "daily-crews-summary-command";
+
+  const commandLabel = document.createElement("td");
+  commandLabel.className = "daily-crews-summary-command-label";
+  commandLabel.textContent = "Command 13";
+  commandRow.appendChild(commandLabel);
+
+  const commandInKey = `weekly-${dateKey}-command-${shift.id}-in`;
+  const commandInCell = document.createElement("td");
+  commandInCell.className = "daily-crews-summary-command-cell";
+  commandInCell.appendChild(createDailyCrewsMirrorValue("time", assignments[commandInKey] || ""));
+  commandRow.appendChild(commandInCell);
+
+  const commandMemberKey = `weekly-${dateKey}-command-${shift.id}-member`;
+  const commandMemberCell = document.createElement("td");
+  commandMemberCell.className = "daily-crews-summary-command-cell";
+  commandMemberCell.appendChild(createDailyCrewsMirrorValue("command", assignments[commandMemberKey] || "", command13Colors));
+  commandRow.appendChild(commandMemberCell);
+
+  const commandOutKey = `weekly-${dateKey}-command-${shift.id}-out`;
+  const commandOutCell = document.createElement("td");
+  commandOutCell.className = "daily-crews-summary-command-cell";
+  commandOutCell.appendChild(createDailyCrewsMirrorValue("time", assignments[commandOutKey] || ""));
+  commandRow.appendChild(commandOutCell);
+
+  table.appendChild(commandRow);
+
+  return shell;
+}
+
+function buildDailyCrewsShiftMirror(boardData, shift, assignments) {
+  const wrap = document.createElement("div");
+  wrap.className = "daily-crews-summary-grid";
+
+  wrap.appendChild(buildDailyCrewsShiftMirrorPanel(boardData, shift, assignments, getDailyCrewsDateKey(0), "Today"));
+  wrap.appendChild(buildDailyCrewsShiftMirrorPanel(boardData, shift, assignments, getDailyCrewsDateKey(1), "Tomorrow"));
+
+  return wrap;
+}
+
+function buildDailyCrewShift(boardData, savedData, shift) {
+  const section = document.createElement("section");
+  section.className = "daily-crews-shift";
+
+  const rail = document.createElement("div");
+  rail.className = "daily-crews-shift-rail";
+
+  const badge = document.createElement("div");
+  badge.className = "daily-crews-shift-badge";
+  badge.textContent = shift.id.toUpperCase();
+  rail.appendChild(badge);
+
+  const content = document.createElement("div");
+  content.className = "daily-crews-shift-stack";
+
+  const hourGrid = document.createElement("div");
+  hourGrid.className = "daily-crews-shift-content";
+  shift.hours.forEach((hour) => {
+    hourGrid.appendChild(buildDailyCrewHour(boardData, savedData, shift.id, hour));
+  });
+  content.appendChild(hourGrid);
+
+  const shiftAssignments = loadDailyCrewsShiftAssignments();
+  content.appendChild(buildDailyCrewsShiftMirror(boardData, shift, shiftAssignments));
+
+  rail.appendChild(content);
+
+  section.appendChild(rail);
+  return section;
+}
+
+function renderDailyCrewsPage() {
+  const wrap = document.getElementById("dailyCrewsWrap");
+  if (!wrap) {
+    return;
+  }
+
+  const boardData = loadBoardData();
+  const savedData = loadDailyCrewsData();
+
+  wrap.innerHTML = "";
+  dailyCrewShifts.forEach((shift) => {
+    wrap.appendChild(buildDailyCrewShift(boardData, savedData, shift));
+  });
+}
+
+async function initDailyCrewsPage() {
+  if (window.storageService) {
+    await window.storageService.initializePersistence();
+  }
+  renderDailyCrewsPage();
+}
+
+function isDailyCrewsFieldActive() {
+  const activeElement = document.activeElement;
+  return activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName);
+}
+
+let dailyCrewsRefreshPending = false;
+
+window.addEventListener("station13:persistence-updated", (event) => {
+  const changedKeys = event.detail?.changedKeys || [];
+  const shouldRefresh = changedKeys.some((key) => ["boardData", "dailyCrewsData", "weeklyAssignments", "systemMeta"].includes(key));
+
+  if (!shouldRefresh) {
+    return;
+  }
+
+  if (isDailyCrewsFieldActive()) {
+    dailyCrewsRefreshPending = true;
+    return;
+  }
+
+  renderDailyCrewsPage();
+});
+
+document.addEventListener("focusout", () => {
+  if (!dailyCrewsRefreshPending) {
+    return;
+  }
+
+  dailyCrewsRefreshPending = false;
+  window.setTimeout(renderDailyCrewsPage, 0);
+});
+
+initDailyCrewsPage();
