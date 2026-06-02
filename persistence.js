@@ -13,7 +13,7 @@ let persistenceServerAvailable = false;
 let persistencePollingTimer = null;
 let persistencePollingInFlight = false;
 const pendingPersistenceWrites = new Set();
-const POLLING_INTERVAL_MS = 1000;
+const POLLING_INTERVAL_MS = 5000;
 const LOCAL_KEY_TO_STATE_KEY = Object.fromEntries(
   Object.entries(PERSISTENCE_KEYS).map(([stateKey, localKey]) => [localKey, stateKey])
 );
