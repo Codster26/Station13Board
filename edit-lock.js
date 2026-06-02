@@ -25,8 +25,11 @@
       return;
     }
 
-    button.textContent = isUnlocked() ? "Editing Unlocked" : "Unlock Editing";
-    button.classList.toggle("edit-unlock-button--unlocked", isUnlocked());
+    const unlocked = isUnlocked();
+    button.textContent = unlocked ? "Relock Board" : "Unlock Editing";
+    button.setAttribute("aria-pressed", unlocked ? "true" : "false");
+    button.title = unlocked ? "Lock editing on this device" : "Enter passkey to edit the board";
+    button.classList.toggle("edit-unlock-button--unlocked", unlocked);
   }
 
   function applyLockState() {
@@ -170,20 +173,23 @@
     button.className = "top-link edit-unlock-button";
     button.type = "button";
     button.addEventListener("click", () => {
-      if (!isUnlocked()) {
-        requestPasskey();
+      if (isUnlocked()) {
+        window.station13EditLock?.lock();
+        return;
       }
+
+      requestPasskey();
     });
 
     const ridingNav = document.querySelector(".board-bottom-nav");
     if (ridingNav) {
-      ridingNav.prepend(button);
+      ridingNav.append(button);
       return;
     }
 
     const menu = document.querySelector(".top-links--menu");
     if (menu) {
-      menu.prepend(button);
+      menu.append(button);
     }
   }
 

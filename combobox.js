@@ -71,6 +71,10 @@
     let visibleOptions = [];
     let isOpen = false;
 
+    function isEditingLocked() {
+      return window.station13EditLock && !window.station13EditLock.isUnlocked();
+    }
+
     function positionList() {
       if (!isOpen) {
         return;
@@ -197,6 +201,10 @@
     }
 
     function openList({ showAll = false, activateFirst = false } = {}) {
+      if (isEditingLocked()) {
+        return;
+      }
+
       if (openCombobox && openCombobox !== closeList) {
         openCombobox();
       }
@@ -246,6 +254,11 @@
     }
 
     input.addEventListener("input", () => {
+      if (isEditingLocked()) {
+        input.value = committedValue;
+        return;
+      }
+
       const rawValue = input.value.trim();
       if (!rawValue) {
         commit("", true);
@@ -264,16 +277,32 @@
     });
 
     input.addEventListener("focus", () => {
+      if (isEditingLocked()) {
+        input.blur();
+        return;
+      }
+
       input.select();
       openList({ showAll: true });
     });
 
     input.addEventListener("click", () => {
+      if (isEditingLocked()) {
+        input.blur();
+        return;
+      }
+
       input.select();
       openList({ showAll: true });
     });
 
     input.addEventListener("keydown", (event) => {
+      if (isEditingLocked()) {
+        event.preventDefault();
+        input.value = committedValue;
+        return;
+      }
+
       if (event.key === "ArrowDown") {
         event.preventDefault();
         if (!isOpen) {
