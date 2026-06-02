@@ -1999,13 +1999,16 @@ body::before {
   }
 
   .board-calendar-stack .daily-calendar-card {
-    height: var(--board-calendar-day-height);
-    min-height: var(--board-calendar-day-height);
+    height: auto;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: visible;
   }
 
   .board-calendar-stack .daily-calendar-wrap {
     overflow-x: auto;
-    overflow-y: auto;
+    overflow-y: visible;
+    height: auto;
   }
 
   .board-page .daily-calendar-table,
@@ -2013,14 +2016,12 @@ body::before {
     width: 1952px;
     min-width: 1952px;
     height: auto;
-    min-height: 100%;
+    min-height: 0;
     table-layout: fixed;
   }
 
   .board-page .dc-command-row td {
-    position: sticky;
-    bottom: 0;
-    z-index: 4;
+    position: static;
   }
 
   .board-page .dc-command-label {
