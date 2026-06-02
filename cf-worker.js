@@ -1,5 +1,4 @@
 import { DurableObject } from "cloudflare:workers";
-import puppeteer from "@cloudflare/puppeteer";
 
 const DEFAULT_STATE = {
   boardData: null,
@@ -166,6 +165,7 @@ async function delay(ms) {
 
 async function launchBrowserWithRetry(env, attempts = 3) {
   let lastError;
+  const { default: puppeteer } = await import("@cloudflare/puppeteer");
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -607,21 +607,45 @@ export class StateStore extends DurableObject {
 }
 
 async function fetchCurrentState(env) {
+  if (!env.STATE_STORE) {
+    throw new Error("STATE_STORE Durable Object binding is not configured.");
+  }
+
   const id = env.STATE_STORE.idFromName("station13-shared-state");
   const stub = env.STATE_STORE.get(id);
   const response = await stub.fetch("https://state.internal/internal/state");
+  if (!response.ok) {
+    throw new Error(`STATE_STORE returned ${response.status} while loading app state.`);
+  }
   return response.json();
 }
 
 async function persistFullState(env, state) {
+  if (!env.STATE_STORE) {
+    throw new Error("STATE_STORE Durable Object binding is not configured.");
+  }
+
   const id = env.STATE_STORE.idFromName("station13-shared-state");
   const stub = env.STATE_STORE.get(id);
-  await stub.fetch("https://state.internal/internal/state", {
+  const response = await stub.fetch("https://state.internal/internal/state", {
     method: "PUT",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify(state)
+  });
+  if (!response.ok) {
+    throw new Error(`STATE_STORE returned ${response.status} while saving app state.`);
+  }
+}
+
+function buildErrorResponse(error, status = 500) {
+  return Response.json({
+    ok: false,
+    error: error?.message || "Station 13 worker error."
+  }, {
+    status,
+    headers: { "Cache-Control": "no-store" }
   });
 }
 
@@ -927,11 +951,31 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (url.pathname === "/api/health" && request.method === "GET") {
+      try {
+        const state = await fetchCurrentState(env);
+        return Response.json({
+          ok: true,
+          stateKeys: Object.keys(state || {}),
+          hasBoardData: !!state?.boardData,
+          hasWeeklyAssignments: !!state?.weeklyAssignments
+        }, {
+          headers: { "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return buildErrorResponse(error);
+      }
+    }
+
     if (url.pathname === "/api/state" && request.method === "GET") {
-      const state = await fetchCurrentState(env);
-      return Response.json(state, {
-        headers: { "Cache-Control": "no-store" }
-      });
+      try {
+        const state = await fetchCurrentState(env);
+        return Response.json(state, {
+          headers: { "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return buildErrorResponse(error);
+      }
     }
 
     if (url.pathname.startsWith("/api/state/") && request.method === "PUT") {
@@ -947,16 +991,29 @@ export default {
         return Response.json({ error: "Invalid JSON payload" }, { status: 400 });
       }
 
-      const id = env.STATE_STORE.idFromName("station13-shared-state");
-      const stub = env.STATE_STORE.get(id);
-      await stub.fetch(`https://state.internal/internal/state/${encodeURIComponent(key)}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-      return Response.json({ ok: true });
+      try {
+        if (!env.STATE_STORE) {
+          throw new Error("STATE_STORE Durable Object binding is not configured.");
+        }
+
+        const id = env.STATE_STORE.idFromName("station13-shared-state");
+        const stub = env.STATE_STORE.get(id);
+        const response = await stub.fetch(`https://state.internal/internal/state/${encodeURIComponent(key)}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          throw new Error(`STATE_STORE returned ${response.status} while saving ${key}.`);
+        }
+        return Response.json({ ok: true }, {
+          headers: { "Cache-Control": "no-store" }
+        });
+      } catch (error) {
+        return buildErrorResponse(error);
+      }
     }
 
     if (url.pathname === "/api/admin/rollover-preview" && request.method === "GET") {
