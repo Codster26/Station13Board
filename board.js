@@ -449,18 +449,18 @@ function stripCommandRoleLabel(value) {
 
 function populateBoardDropdowns() {
   const boardData = loadBoardData();
-  const selects = document.querySelectorAll("select[data-seat]");
+  const seatControls = document.querySelectorAll("select[data-seat], input[data-seat]");
 
-  selects.forEach((select) => {
-    const seatId = select.dataset.seat;
-    const fallbackValue = getFallbackForSeat(boardData, seatId, select.dataset.default || OPEN_ASSIGNMENT);
+  seatControls.forEach((control) => {
+    const seatId = control.dataset.seat;
+    const fallbackValue = getFallbackForSeat(boardData, seatId, control.dataset.default || OPEN_ASSIGNMENT);
     const selectedValue = boardData.assignments[seatId] || fallbackValue;
     const normalizedValue = selectedValue === OPEN_ASSIGNMENT ? "" : selectedValue;
     const poolKey = getSeatPoolKey(boardData, seatId);
     const pool = getPoolForSeat(boardData, seatId);
     const options = buildOptions(pool, normalizedValue, false);
     const colorMap = getColorRuleMap(boardData, poolKey);
-    const className = Array.from(select.classList)
+    const className = Array.from(control.classList)
       .filter((token) => token !== "seat-input--empty")
       .join(" ") || "seat-input";
 
@@ -489,7 +489,13 @@ function populateBoardDropdowns() {
     });
     updateEmptyStyling(field.input);
     applyMemberFillColor(field.input, colorMap);
-    select.replaceWith(field.root);
+
+    const existingRoot = control.closest(".search-combobox");
+    if (existingRoot) {
+      existingRoot.replaceWith(field.root);
+    } else {
+      control.replaceWith(field.root);
+    }
   });
 }
 

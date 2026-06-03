@@ -111,7 +111,16 @@ function showStatus(message, isError = false) {
   saveStatus.classList.toggle("save-status--error", isError);
 }
 
+function canEditManageSite() {
+  return !window.station13EditLock || window.station13EditLock.canEdit();
+}
+
 saveButton.addEventListener("click", () => {
+  if (!canEditManageSite()) {
+    showStatus("Admin unlock required to save Manage Site changes.", true);
+    return;
+  }
+
   const currentData = loadBoardData();
   const updatedLists = readListsFromForm();
   const saved = saveBoardData({
@@ -123,6 +132,11 @@ saveButton.addEventListener("click", () => {
 });
 
 resetButton.addEventListener("click", () => {
+  if (!canEditManageSite()) {
+    showStatus("Admin unlock required to reset Manage Site.", true);
+    return;
+  }
+
   const currentData = loadBoardData();
   const resetData = saveBoardData({
     ...DEFAULT_BOARD_DATA,
