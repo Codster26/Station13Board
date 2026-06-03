@@ -112,7 +112,7 @@ function showStatus(message, isError = false) {
 }
 
 function canEditManageSite() {
-  return !window.station13EditLock || window.station13EditLock.canEdit();
+  return Boolean(window.station13EditLock?.canEdit());
 }
 
 saveButton.addEventListener("click", () => {

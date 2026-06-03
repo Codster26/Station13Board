@@ -1,6 +1,6 @@
 (() => {
   const EDIT_KEY = "station13-edit-passkey-ok";
-  const ADMIN_EDIT_KEY = "station13-admin-passkey-ok";
+  const ADMIN_EDIT_KEY = "station13-admin-passkey-ok-v2";
   const PASSKEY = "1326";
   const ADMIN_PASSKEY = "admin";
   const CONTROL_SELECTOR = "input, select, textarea, button";
@@ -10,8 +10,9 @@
   let pendingMode = "board";
 
   function isAdminProtectedPage() {
-    const pageName = window.location.pathname.split("/").pop() || "index.html";
-    return ["manage.html", "staffing.html", "archived.html"].includes(pageName);
+    const pageName = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+    const normalizedName = pageName.replace(/\.html$/, "");
+    return ["manage", "staffing", "archived"].includes(normalizedName);
   }
 
   function isUnlocked() {
@@ -32,6 +33,40 @@
 
   function isProtectedControl(control) {
     return control && control.matches(CONTROL_SELECTOR) && !control.closest(".edit-lock-modal") && !control.matches(SKIP_SELECTOR);
+  }
+
+  function setControlLockState(control, locked) {
+    if (!isProtectedControl(control)) {
+      return;
+    }
+
+    if (control.dataset.editLockOriginalDisabled === undefined) {
+      control.dataset.editLockOriginalDisabled = control.disabled ? "true" : "false";
+    }
+    if (control.dataset.editLockOriginalReadOnly === undefined) {
+      control.dataset.editLockOriginalReadOnly = control.readOnly ? "true" : "false";
+    }
+
+    if (locked) {
+      if (control.tagName === "TEXTAREA" || control.tagName === "INPUT") {
+        control.readOnly = true;
+      } else {
+        control.disabled = true;
+      }
+      control.classList.add("edit-lock-control--locked");
+      return;
+    }
+
+    control.disabled = control.dataset.editLockOriginalDisabled === "true";
+    control.readOnly = control.dataset.editLockOriginalReadOnly === "true";
+    control.classList.remove("edit-lock-control--locked");
+  }
+
+  function applyControlLockState() {
+    const locked = !canEdit();
+    document.querySelectorAll(CONTROL_SELECTOR).forEach((control) => {
+      setControlLockState(control, locked);
+    });
   }
 
   function refreshButton(button, mode) {
@@ -62,6 +97,7 @@
     document.documentElement.classList.toggle("station13-edit-unlocked", canEdit());
     document.documentElement.classList.toggle("station13-admin-page", isAdminProtectedPage());
     document.documentElement.classList.toggle("station13-admin-unlocked", isAdminUnlocked());
+    applyControlLockState();
     refreshButtons();
   }
 
@@ -87,6 +123,12 @@
   function installEditGuards() {
     ["pointerdown", "mousedown", "touchstart", "keydown", "input", "change"].forEach((eventName) => {
       document.addEventListener(eventName, guardLockedEdit, true);
+    });
+
+    const observer = new MutationObserver(() => applyControlLockState());
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
     });
   }
 
