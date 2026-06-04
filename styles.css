@@ -2173,15 +2173,39 @@ body::before {
 
 @media (max-width: 760px), (max-device-width: 760px) {
   body.board-page {
-    min-width: 1800px;
-    overflow: auto;
+    min-width: 0;
+    overflow: hidden;
+    touch-action: none;
   }
 
   body.board-page::before {
     width: 1800px;
   }
 
+  .board-mobile-zoom-viewport {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    width: 100vw;
+    height: 100dvh;
+    overflow: auto;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .board-mobile-zoom-spacer {
+    position: relative;
+    min-width: 1px;
+    min-height: 1px;
+  }
+
   .board-page .page-shell {
+    --board-mobile-scale: 1;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: scale(var(--board-mobile-scale));
+    transform-origin: top left;
     width: 1800px;
     min-width: 1800px;
     min-height: 1080px;

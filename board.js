@@ -146,6 +146,7 @@ const outOfServiceSlotCount = 10;
 const DAILY_BLANK_VERSION = "1";
 const WEEKLY_STORAGE_KEY = "station13-weekly-calendar";
 let activeOutServiceDateMenu = null;
+let boardMobileZoomState = null;
 
 const defaultDailyAssignments = {};
 
@@ -963,7 +964,131 @@ function renderDailyCalendar() {
   }
 }
 
+function isMobileBoardZoomTarget() {
+  return window.matchMedia("(pointer: coarse) and (max-width: 900px)").matches;
+}
+
+function updateMobileBoardZoomSpacer() {
+  if (!boardMobileZoomState) {
+    return;
+  }
+
+  const { shell, spacer } = boardMobileZoomState;
+  const scale = boardMobileZoomState.scale;
+  const canvasWidth = Math.max(1800, shell.scrollWidth);
+  const canvasHeight = Math.max(1080, shell.scrollHeight);
+  spacer.style.width = `${canvasWidth * scale}px`;
+  spacer.style.height = `${canvasHeight * scale}px`;
+}
+
+function applyMobileBoardZoom(nextScale, anchor = null) {
+  if (!boardMobileZoomState) {
+    return;
+  }
+
+  const { viewport, shell } = boardMobileZoomState;
+  const previousScale = boardMobileZoomState.scale;
+  const scale = Math.min(3.5, Math.max(0.12, nextScale));
+  boardMobileZoomState.scale = scale;
+  shell.style.setProperty("--board-mobile-scale", scale);
+  updateMobileBoardZoomSpacer();
+
+  if (!anchor || previousScale === scale) {
+    return;
+  }
+
+  const viewportRect = viewport.getBoundingClientRect();
+  const anchorX = anchor.clientX - viewportRect.left;
+  const anchorY = anchor.clientY - viewportRect.top;
+  const contentX = (viewport.scrollLeft + anchorX) / previousScale;
+  const contentY = (viewport.scrollTop + anchorY) / previousScale;
+  viewport.scrollLeft = (contentX * scale) - anchorX;
+  viewport.scrollTop = (contentY * scale) - anchorY;
+}
+
+function setupMobileBoardZoom() {
+  if (!isMobileBoardZoomTarget()) {
+    return;
+  }
+
+  const shell = document.querySelector(".board-page .page-shell");
+  if (!shell || shell.dataset.mobileZoomReady === "true") {
+    return;
+  }
+
+  shell.dataset.mobileZoomReady = "true";
+
+  const viewport = document.createElement("div");
+  viewport.className = "board-mobile-zoom-viewport";
+  const spacer = document.createElement("div");
+  spacer.className = "board-mobile-zoom-spacer";
+
+  shell.parentNode.insertBefore(viewport, shell);
+  viewport.appendChild(spacer);
+  spacer.appendChild(shell);
+
+  const initialScale = Math.min(0.34, Math.max(0.16, window.innerWidth / 1800));
+  boardMobileZoomState = {
+    viewport,
+    spacer,
+    shell,
+    scale: initialScale,
+    startDistance: 0,
+    startScale: initialScale
+  };
+
+  applyMobileBoardZoom(initialScale);
+
+  viewport.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 2) {
+      return;
+    }
+
+    const [first, second] = event.touches;
+    boardMobileZoomState.startDistance = Math.hypot(
+      second.clientX - first.clientX,
+      second.clientY - first.clientY
+    );
+    boardMobileZoomState.startScale = boardMobileZoomState.scale;
+  }, { passive: true });
+
+  viewport.addEventListener("touchmove", (event) => {
+    if (event.touches.length !== 2 || !boardMobileZoomState.startDistance) {
+      return;
+    }
+
+    event.preventDefault();
+    const [first, second] = event.touches;
+    const distance = Math.hypot(
+      second.clientX - first.clientX,
+      second.clientY - first.clientY
+    );
+    const midpoint = {
+      clientX: (first.clientX + second.clientX) / 2,
+      clientY: (first.clientY + second.clientY) / 2
+    };
+    applyMobileBoardZoom(boardMobileZoomState.startScale * (distance / boardMobileZoomState.startDistance), midpoint);
+  }, { passive: false });
+
+  viewport.addEventListener("wheel", (event) => {
+    if (!event.ctrlKey) {
+      return;
+    }
+
+    event.preventDefault();
+    const zoomFactor = event.deltaY < 0 ? 1.08 : 0.92;
+    applyMobileBoardZoom(boardMobileZoomState.scale * zoomFactor, event);
+  }, { passive: false });
+
+  window.addEventListener("resize", () => {
+    if (isMobileBoardZoomTarget()) {
+      updateMobileBoardZoomSpacer();
+    }
+  });
+}
+
 async function initBoardPage() {
+  setupMobileBoardZoom();
   refreshBoardFromPersistence();
 
   if (window.storageService) {
@@ -989,6 +1114,7 @@ function refreshBoardFromPersistence() {
   populateBoardDropdowns();
   renderOutOfServiceCard();
   renderDailyCalendar();
+  updateMobileBoardZoomSpacer();
 }
 
 window.addEventListener("station13:persistence-updated", (event) => {
