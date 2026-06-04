@@ -2170,3 +2170,215 @@ body::before {
     min-width: 760px;
   }
 }
+
+@media (max-width: 760px), (max-device-width: 760px) {
+  body.board-page {
+    min-width: 1800px;
+    overflow: auto;
+  }
+
+  body.board-page::before {
+    width: 1800px;
+  }
+
+  .board-page .page-shell {
+    width: 1800px;
+    min-width: 1800px;
+    min-height: 1080px;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 6px 4px 8px;
+  }
+
+  .board-page .board-layout {
+    display: grid;
+    height: auto;
+    min-height: 0;
+    margin-top: 0;
+  }
+
+  .board-page .riding-top-layout {
+    --board-calendar-day-height: 510px;
+    --board-calendar-cell-font-size: 0.92rem;
+    --board-calendar-shift-font-size: 0.98rem;
+    --board-calendar-side-title-font-size: 1rem;
+    --board-calendar-side-date-font-size: 0.94rem;
+    --board-calendar-cell-padding-y: 0;
+    --board-calendar-cell-padding-x: 1px;
+    --board-calendar-line-height: 1.28;
+    --riding-left-gap: 6px;
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 6px;
+    align-items: start;
+  }
+
+  .board-page .riding-left-stack {
+    height: calc((var(--board-calendar-day-height) * 2) + 10px);
+    gap: var(--riding-left-gap);
+  }
+
+  .board-page .assignment-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: var(--riding-left-gap);
+  }
+
+  .board-page .command-rail {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(3, 78px);
+    gap: var(--riding-left-gap);
+  }
+
+  .board-page .apparatus-card {
+    min-height: 0;
+  }
+
+  .board-page .apparatus-header,
+  .board-page .command-card .apparatus-header {
+    height: 38px;
+    min-height: 38px;
+    max-height: 38px;
+    padding: 2px 5px;
+  }
+
+  .board-page .apparatus-header h2,
+  .board-page .apparatus-header-input {
+    font-size: clamp(1.9rem, 1.48vw, 1.9rem);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+
+  .board-page .command-card .apparatus-header h2,
+  .board-page .command-card--command .apparatus-header h2,
+  .board-page .command-card--secondary .apparatus-header h2,
+  .board-page .command-card--coordinator .apparatus-header h2 {
+    font-size: 1.3rem;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+
+  .board-page .apparatus-card .seat-list,
+  .board-page .seat-list {
+    padding: 1px 4px 4px;
+    gap: 0;
+  }
+
+  .board-page .apparatus-card .seat-row,
+  .board-page .seat-row {
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 4px;
+    min-height: 0;
+    padding: 0 3px 0 4px;
+  }
+
+  .board-page .apparatus-card .seat-role,
+  .board-page .seat-role {
+    font-size: 0.82rem;
+    letter-spacing: -0.02em;
+  }
+
+  .board-page .apparatus-card .seat-input,
+  .board-page .seat-input {
+    min-height: 28px;
+    font-size: 1.1rem;
+    padding: 0 1px;
+    text-align: center;
+    text-align-last: center;
+  }
+
+  .board-page .command-card {
+    grid-template-rows: 39px 39px;
+  }
+
+  .board-page .command-card .seat-list,
+  .board-page .command-card .seat-row--single,
+  .board-page .command-card .search-combobox > .seat-input {
+    height: 39px;
+    min-height: 39px;
+  }
+
+  .board-page .out-service-card {
+    grid-template-rows: 32px minmax(0, 1fr);
+  }
+
+  .board-page .out-service-card .apparatus-header {
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
+  }
+
+  .board-page .out-service-card .apparatus-header h2 {
+    font-size: 0.92rem;
+  }
+
+  .board-page .out-service-table {
+    min-height: 0;
+  }
+
+  .board-page .board-calendar-stack {
+    gap: 10px;
+  }
+
+  .board-page .board-calendar-stack .daily-calendar-card {
+    height: var(--board-calendar-day-height);
+    min-height: var(--board-calendar-day-height);
+    overflow: hidden;
+  }
+
+  .board-page .board-calendar-stack .daily-calendar-wrap {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .board-page .daily-calendar-table {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    table-layout: fixed;
+  }
+
+  .board-page .dc-col-side,
+  .board-page .dc-side-header,
+  .board-page .dc-side-cell {
+    width: 104px;
+  }
+
+  .board-page .dc-col-time {
+    width: 36px;
+  }
+
+  .board-page .daily-select {
+    min-height: 0;
+    font-size: var(--board-calendar-cell-font-size);
+    padding: 0 1px;
+  }
+
+  .board-page .dc-side-content {
+    padding: 4px;
+  }
+
+  .board-page .dc-side-tag-select {
+    min-height: 24px;
+    font-size: 0.72rem;
+  }
+
+  .board-page .dc-side-description {
+    min-height: 42px;
+    font-size: 0.7rem;
+  }
+
+  .board-page .board-bottom-nav {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-auto-flow: column;
+    gap: 8px;
+    padding-top: 0;
+  }
+
+  .board-page .board-bottom-nav .top-link,
+  .board-page .top-link {
+    min-height: 34px;
+    font-size: 0.82rem;
+  }
+}
