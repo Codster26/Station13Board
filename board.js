@@ -147,7 +147,6 @@ const DAILY_BLANK_VERSION = "1";
 const WEEKLY_STORAGE_KEY = "station13-weekly-calendar";
 const MOBILE_BOARD_CANVAS_WIDTH = 2040;
 let activeOutServiceDateMenu = null;
-let boardMobileZoomState = null;
 
 const defaultDailyAssignments = {};
 
@@ -612,13 +611,25 @@ function renderOutOfServiceCard() {
     ufnButton.textContent = "UFN";
     menu.appendChild(ufnButton);
 
-    document.body.appendChild(menu);
+    const host = window.station13MobileZoom?.getShell?.() || document.body;
+    const isZoomOverlay = host !== document.body && window.station13MobileZoom?.isActive?.();
+    host.appendChild(menu);
 
     const rect = anchor.getBoundingClientRect();
     const menuWidth = Math.max(170, rect.width + 58);
-    menu.style.left = `${Math.min(window.innerWidth - menuWidth - 4, Math.max(4, rect.left))}px`;
-    menu.style.top = `${rect.bottom + 4}px`;
-    menu.style.width = `${menuWidth}px`;
+    if (isZoomOverlay) {
+      const scale = window.station13MobileZoom.getScale();
+      const hostRect = host.getBoundingClientRect();
+      menu.style.position = "absolute";
+      menu.style.left = `${Math.max(4, (rect.left - hostRect.left) / scale)}px`;
+      menu.style.top = `${((rect.bottom - hostRect.top) / scale) + (4 / scale)}px`;
+      menu.style.width = `${menuWidth / scale}px`;
+    } else {
+      menu.style.position = "fixed";
+      menu.style.left = `${Math.min(window.innerWidth - menuWidth - 4, Math.max(4, rect.left))}px`;
+      menu.style.top = `${rect.bottom + 4}px`;
+      menu.style.width = `${menuWidth}px`;
+    }
 
     function closeMenu() {
       menu.remove();
@@ -965,126 +976,18 @@ function renderDailyCalendar() {
   }
 }
 
-function isMobileBoardZoomTarget() {
-  return window.matchMedia("(pointer: coarse) and (max-width: 900px)").matches;
-}
-
 function updateMobileBoardZoomSpacer() {
-  if (!boardMobileZoomState) {
-    return;
-  }
-
-  const { shell, spacer } = boardMobileZoomState;
-  const scale = boardMobileZoomState.scale;
-  const canvasWidth = Math.max(MOBILE_BOARD_CANVAS_WIDTH, shell.scrollWidth);
-  const canvasHeight = Math.max(1080, shell.scrollHeight);
-  spacer.style.width = `${canvasWidth * scale}px`;
-  spacer.style.height = `${canvasHeight * scale}px`;
-}
-
-function applyMobileBoardZoom(nextScale, anchor = null) {
-  if (!boardMobileZoomState) {
-    return;
-  }
-
-  const { viewport, shell } = boardMobileZoomState;
-  const previousScale = boardMobileZoomState.scale;
-  const scale = Math.min(3.5, Math.max(0.12, nextScale));
-  boardMobileZoomState.scale = scale;
-  shell.style.setProperty("--board-mobile-scale", scale);
-  updateMobileBoardZoomSpacer();
-
-  if (!anchor || previousScale === scale) {
-    return;
-  }
-
-  const viewportRect = viewport.getBoundingClientRect();
-  const anchorX = anchor.clientX - viewportRect.left;
-  const anchorY = anchor.clientY - viewportRect.top;
-  const contentX = (viewport.scrollLeft + anchorX) / previousScale;
-  const contentY = (viewport.scrollTop + anchorY) / previousScale;
-  viewport.scrollLeft = (contentX * scale) - anchorX;
-  viewport.scrollTop = (contentY * scale) - anchorY;
+  window.station13MobileZoom?.refresh();
 }
 
 function setupMobileBoardZoom() {
-  if (!isMobileBoardZoomTarget()) {
-    return;
-  }
-
-  const shell = document.querySelector(".board-page .page-shell");
-  if (!shell || shell.dataset.mobileZoomReady === "true") {
-    return;
-  }
-
-  shell.dataset.mobileZoomReady = "true";
-
-  const viewport = document.createElement("div");
-  viewport.className = "board-mobile-zoom-viewport";
-  const spacer = document.createElement("div");
-  spacer.className = "board-mobile-zoom-spacer";
-
-  shell.parentNode.insertBefore(viewport, shell);
-  viewport.appendChild(spacer);
-  spacer.appendChild(shell);
-
-  const initialScale = Math.min(0.34, Math.max(0.14, window.innerWidth / MOBILE_BOARD_CANVAS_WIDTH));
-  boardMobileZoomState = {
-    viewport,
-    spacer,
-    shell,
-    scale: initialScale,
-    startDistance: 0,
-    startScale: initialScale
-  };
-
-  applyMobileBoardZoom(initialScale);
-
-  viewport.addEventListener("touchstart", (event) => {
-    if (event.touches.length !== 2) {
-      return;
-    }
-
-    const [first, second] = event.touches;
-    boardMobileZoomState.startDistance = Math.hypot(
-      second.clientX - first.clientX,
-      second.clientY - first.clientY
-    );
-    boardMobileZoomState.startScale = boardMobileZoomState.scale;
-  }, { passive: true });
-
-  viewport.addEventListener("touchmove", (event) => {
-    if (event.touches.length !== 2 || !boardMobileZoomState.startDistance) {
-      return;
-    }
-
-    event.preventDefault();
-    const [first, second] = event.touches;
-    const distance = Math.hypot(
-      second.clientX - first.clientX,
-      second.clientY - first.clientY
-    );
-    const midpoint = {
-      clientX: (first.clientX + second.clientX) / 2,
-      clientY: (first.clientY + second.clientY) / 2
-    };
-    applyMobileBoardZoom(boardMobileZoomState.startScale * (distance / boardMobileZoomState.startDistance), midpoint);
-  }, { passive: false });
-
-  viewport.addEventListener("wheel", (event) => {
-    if (!event.ctrlKey) {
-      return;
-    }
-
-    event.preventDefault();
-    const zoomFactor = event.deltaY < 0 ? 1.08 : 0.92;
-    applyMobileBoardZoom(boardMobileZoomState.scale * zoomFactor, event);
-  }, { passive: false });
-
-  window.addEventListener("resize", () => {
-    if (isMobileBoardZoomTarget()) {
-      updateMobileBoardZoomSpacer();
-    }
+  window.station13MobileZoom?.setup({
+    canvasWidth: MOBILE_BOARD_CANVAS_WIDTH,
+    minHeight: 1080,
+    initialMaxScale: 0.34,
+    initialMinScale: 0.14,
+    minScale: 0.1,
+    maxScale: 4
   });
 }
 

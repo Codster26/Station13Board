@@ -501,6 +501,15 @@ body::before {
   display: none !important;
 }
 
+.station13-mobile-zoomed .search-combobox-list,
+.station13-mobile-zoomed .out-service-date-menu {
+  position: absolute;
+}
+
+.station13-mobile-zoomed .search-combobox-list {
+  min-width: 0;
+}
+
 .station13-edit-locked .search-combobox > input,
 .station13-edit-locked select,
 .station13-edit-locked textarea {
@@ -1503,6 +1512,14 @@ body::before {
   font-size: 0.92rem;
 }
 
+.riding-left-column .board-bottom-nav {
+  grid-template-columns: 1fr;
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  gap: var(--riding-left-gap);
+  padding-top: 0;
+}
+
 .daily-calendar-table th,
 .daily-calendar-table td {
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2172,17 +2189,17 @@ body::before {
 }
 
 @media (max-width: 760px), (max-device-width: 760px) {
-  body.board-page {
+  body.station13-mobile-zoomed {
     min-width: 0;
     overflow: hidden;
     touch-action: none;
   }
 
-  body.board-page::before {
-    width: 2040px;
+  body.station13-mobile-zoomed::before {
+    width: var(--station13-mobile-canvas-width, 1280px);
   }
 
-  .board-mobile-zoom-viewport {
+  .station13-mobile-zoom-viewport {
     position: fixed;
     inset: 0;
     z-index: 1;
@@ -2193,26 +2210,35 @@ body::before {
     -webkit-overflow-scrolling: touch;
   }
 
-  .board-mobile-zoom-spacer {
+  .station13-mobile-zoom-spacer {
     position: relative;
     min-width: 1px;
     min-height: 1px;
   }
 
-  .board-page .page-shell {
-    --board-mobile-scale: 1;
+  body.station13-mobile-zoomed .page-shell {
+    --station13-mobile-scale: 1;
+    --station13-mobile-canvas-width: 1280px;
     position: absolute;
     top: 0;
     left: 0;
-    transform: scale(var(--board-mobile-scale));
+    transform: scale(var(--station13-mobile-scale));
     transform-origin: top left;
-    width: 2040px;
-    min-width: 2040px;
+    width: var(--station13-mobile-canvas-width);
+    min-width: var(--station13-mobile-canvas-width);
+    min-height: 900px;
+  }
+
+  body.board-page.station13-mobile-zoomed .page-shell {
     min-height: 1080px;
     display: grid;
     grid-template-rows: minmax(0, 1fr) auto;
     gap: 8px;
     padding: 6px 4px 8px;
+  }
+
+  body:not(.board-page).station13-mobile-zoomed .page-shell {
+    padding: 10px 8px 48px;
   }
 
   .board-page .board-layout {
@@ -2394,9 +2420,9 @@ body::before {
   }
 
   .board-page .board-bottom-nav {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    grid-auto-flow: column;
-    gap: 8px;
+    grid-template-columns: 1fr;
+    grid-auto-flow: row;
+    gap: var(--riding-left-gap);
     padding-top: 0;
   }
 

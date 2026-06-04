@@ -71,6 +71,14 @@
     let visibleOptions = [];
     let isOpen = false;
 
+    function getOverlayHost() {
+      return window.station13MobileZoom?.getShell?.() || document.body;
+    }
+
+    function isZoomOverlayActive(host) {
+      return host !== document.body && window.station13MobileZoom?.isActive?.();
+    }
+
     function isEditingLocked() {
       return window.station13EditLock && !window.station13EditLock.canEdit();
     }
@@ -86,7 +94,25 @@
       const listHeight = Math.min(280, Math.max(120, Math.max(availableBelow, availableAbove)));
       const opensAbove = availableBelow < 160 && availableAbove > availableBelow;
       const minWidth = input.classList.contains("out-service-input--member") ? 250 : 90;
+      const host = getOverlayHost();
 
+      if (isZoomOverlayActive(host)) {
+        const scale = window.station13MobileZoom.getScale();
+        const hostRect = host.getBoundingClientRect();
+        const unscaledLeft = (rect.left - hostRect.left) / scale;
+        const unscaledTop = (rect.bottom - hostRect.top) / scale;
+        const unscaledBottom = (window.innerHeight - rect.top + 3) / scale;
+
+        listbox.style.position = "absolute";
+        listbox.style.left = `${Math.max(4, unscaledLeft)}px`;
+        listbox.style.width = `${Math.max(1, rect.width / scale)}px`;
+        listbox.style.maxHeight = `${listHeight / scale}px`;
+        listbox.style.top = opensAbove ? "auto" : `${unscaledTop + (3 / scale)}px`;
+        listbox.style.bottom = opensAbove ? `${unscaledBottom}px` : "auto";
+        return;
+      }
+
+      listbox.style.position = "fixed";
       listbox.style.left = `${Math.max(4, rect.left)}px`;
       listbox.style.width = `${Math.max(minWidth, rect.width)}px`;
       listbox.style.maxHeight = `${listHeight}px`;
@@ -212,7 +238,7 @@
       openCombobox = closeList;
       isOpen = true;
       if (!listbox.isConnected) {
-        document.body.appendChild(listbox);
+        getOverlayHost().appendChild(listbox);
       }
       listbox.hidden = false;
       input.setAttribute("aria-expanded", "true");
