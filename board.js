@@ -145,6 +145,7 @@ const slotCount = 15;
 const outOfServiceSlotCount = 10;
 const DAILY_BLANK_VERSION = "1";
 const WEEKLY_STORAGE_KEY = "station13-weekly-calendar";
+const MOBILE_BOARD_CANVAS_WIDTH = 2040;
 let activeOutServiceDateMenu = null;
 let boardMobileZoomState = null;
 
@@ -975,7 +976,7 @@ function updateMobileBoardZoomSpacer() {
 
   const { shell, spacer } = boardMobileZoomState;
   const scale = boardMobileZoomState.scale;
-  const canvasWidth = Math.max(1800, shell.scrollWidth);
+  const canvasWidth = Math.max(MOBILE_BOARD_CANVAS_WIDTH, shell.scrollWidth);
   const canvasHeight = Math.max(1080, shell.scrollHeight);
   spacer.style.width = `${canvasWidth * scale}px`;
   spacer.style.height = `${canvasHeight * scale}px`;
@@ -1027,7 +1028,7 @@ function setupMobileBoardZoom() {
   viewport.appendChild(spacer);
   spacer.appendChild(shell);
 
-  const initialScale = Math.min(0.34, Math.max(0.16, window.innerWidth / 1800));
+  const initialScale = Math.min(0.34, Math.max(0.14, window.innerWidth / MOBILE_BOARD_CANVAS_WIDTH));
   boardMobileZoomState = {
     viewport,
     spacer,

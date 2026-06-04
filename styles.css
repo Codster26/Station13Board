@@ -2179,7 +2179,7 @@ body::before {
   }
 
   body.board-page::before {
-    width: 1800px;
+    width: 2040px;
   }
 
   .board-mobile-zoom-viewport {
@@ -2206,8 +2206,8 @@ body::before {
     left: 0;
     transform: scale(var(--board-mobile-scale));
     transform-origin: top left;
-    width: 1800px;
-    min-width: 1800px;
+    width: 2040px;
+    min-width: 2040px;
     min-height: 1080px;
     display: grid;
     grid-template-rows: minmax(0, 1fr) auto;
