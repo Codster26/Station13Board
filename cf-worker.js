@@ -623,12 +623,51 @@ export class StateStore extends DurableObject {
       return Response.json({ ok: true });
     }
 
+    if (url.pathname === "/internal/state/merge" && request.method === "PUT") {
+      const body = await request.json();
+      const stored = await this.ctx.storage.get("app-state");
+      const current = { ...DEFAULT_STATE, ...(stored || {}) };
+      const nextState = body?.state || {};
+      const keys = Array.isArray(body?.keys)
+        ? body.keys.filter((key) => Object.prototype.hasOwnProperty.call(DEFAULT_STATE, key))
+        : [];
+
+      keys.forEach((key) => {
+        if (key === "systemMeta") {
+          current.systemMeta = {
+            ...DEFAULT_STATE.systemMeta,
+            ...(current.systemMeta || {}),
+            ...(nextState.systemMeta || {})
+          };
+        } else {
+          current[key] = nextState[key] === undefined ? current[key] : nextState[key];
+        }
+      });
+
+      await this.ctx.storage.put("app-state", stampPersistenceVersions(current, keys));
+      return Response.json({ ok: true });
+    }
+
     if (url.pathname.startsWith("/internal/state/") && request.method === "PUT") {
       const key = decodeURIComponent(url.pathname.replace("/internal/state/", ""));
       const stored = await this.ctx.storage.get("app-state");
       const current = { ...DEFAULT_STATE, ...(stored || {}) };
+      const clientVersion = Number(request.headers.get("X-Station13-Client-Version") || 0);
+      const currentVersion = Number(current.systemMeta?.persistenceVersions?.[key] || 0);
+      if (key !== "systemMeta" && clientVersion > 0 && currentVersion > clientVersion) {
+        return Response.json({
+          ok: false,
+          error: "Stale write rejected.",
+          currentVersion,
+          clientVersion
+        }, { status: 409 });
+      }
       current[key] = await request.json();
-      await this.ctx.storage.put("app-state", stampPersistenceVersions(current, [key]));
+      const stamped = stampPersistenceVersions(current, [key]);
+      if (key !== "systemMeta" && clientVersion > Number(stamped.systemMeta.persistenceVersions?.[key] || 0)) {
+        stamped.systemMeta.persistenceVersions[key] = clientVersion;
+      }
+      await this.ctx.storage.put("app-state", stamped);
       return Response.json({ ok: true });
     }
 
@@ -650,19 +689,23 @@ async function fetchCurrentState(env) {
   return response.json();
 }
 
-async function persistFullState(env, state) {
+async function persistFullState(env, state, changedKeys = null) {
   if (!env.STATE_STORE) {
     throw new Error("STATE_STORE Durable Object binding is not configured.");
   }
 
   const id = env.STATE_STORE.idFromName("station13-shared-state");
   const stub = env.STATE_STORE.get(id);
-  const response = await stub.fetch("https://state.internal/internal/state", {
+  const response = await stub.fetch(changedKeys?.length
+    ? "https://state.internal/internal/state/merge"
+    : "https://state.internal/internal/state", {
     method: "PUT",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(stampPersistenceVersions(state))
+    body: JSON.stringify(changedKeys?.length
+      ? { state, keys: changedKeys }
+      : stampPersistenceVersions(state))
   });
   if (!response.ok) {
     throw new Error(`STATE_STORE returned ${response.status} while saving app state.`);
@@ -1031,7 +1074,8 @@ export default {
         const response = await stub.fetch(`https://state.internal/internal/state/${encodeURIComponent(key)}`, {
           method: "PUT",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "X-Station13-Client-Version": request.headers.get("X-Station13-Client-Version") || ""
           },
           body: JSON.stringify(body)
         });
@@ -1084,7 +1128,13 @@ export default {
         clearSourceWeekly: body.clearSourceWeekly !== false,
         pruneArchived: body.pruneArchived !== false
       });
-      await persistFullState(env, nextState);
+      await persistFullState(env, nextState, [
+        "boardData",
+        "weeklyAssignments",
+        "archivedAssignments",
+        "staffingHours",
+        "systemMeta"
+      ]);
 
       return Response.json({
         ok: true,
@@ -1124,7 +1174,7 @@ export default {
       }
 
       const result = applyCalculatedHoursToStaffing(nextState, sourceDateKey, targetDateKey);
-      await persistFullState(env, result.state);
+      await persistFullState(env, result.state, ["staffingHours", "systemMeta"]);
 
       return Response.json({
         ok: true,
@@ -1159,7 +1209,7 @@ export default {
           }
         : state;
       const result = applyDailyCrewHourToRidingBoard(sourceState, dateKey, hourLabel);
-      await persistFullState(env, result.state);
+      await persistFullState(env, result.state, result.applied ? ["boardData", "systemMeta"] : ["systemMeta"]);
 
       return Response.json({
         ok: true,
@@ -1193,7 +1243,7 @@ export default {
             lastWeeklyExportDate: referenceDateKey
           }
         });
-        await persistFullState(env, nextState);
+        await persistFullState(env, nextState, ["archivedAssignments", "systemMeta"]);
 
         return Response.json({
           ok: true,
@@ -1222,13 +1272,13 @@ export default {
     let nextState = dailyCrewSync.state;
 
     if (currentHourLabel !== "0000") {
-      await persistFullState(env, nextState);
+      await persistFullState(env, nextState, dailyCrewSync.applied ? ["boardData", "systemMeta"] : ["systemMeta"]);
       return;
     }
 
     const sourceDateKey = addDaysToDateKey(currentDateKey, -1);
     if (nextState.systemMeta?.lastScheduledSourceDate === sourceDateKey) {
-      await persistFullState(env, nextState);
+      await persistFullState(env, nextState, dailyCrewSync.applied ? ["boardData", "systemMeta"] : ["systemMeta"]);
       return;
     }
 
@@ -1265,7 +1315,13 @@ export default {
         }
       }
 
-      await persistFullState(env, finalState);
+      await persistFullState(env, finalState, [
+        "boardData",
+        "weeklyAssignments",
+        "archivedAssignments",
+        "staffingHours",
+        "systemMeta"
+      ]);
     })());
   }
 };

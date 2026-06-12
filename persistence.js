@@ -7,14 +7,17 @@ const PERSISTENCE_KEYS = {
   systemMeta: "station13-system-meta"
 };
 const PERSISTENCE_VERSION_KEY = "station13-persistence-versions";
+const PERSISTENCE_PENDING_KEY = "station13-pending-persistence-writes";
 
 const persistenceState = {};
 let persistenceReady = null;
 let persistenceServerAvailable = false;
 let persistencePollingTimer = null;
 let persistencePollingInFlight = false;
-const pendingPersistenceWrites = new Set();
+let persistenceReconnectTimer = null;
+const pendingPersistenceWrites = new Map();
 const POLLING_INTERVAL_MS = 5000;
+const RECONNECT_INTERVAL_MS = 15000;
 const LOCAL_KEY_TO_STATE_KEY = Object.fromEntries(
   Object.entries(PERSISTENCE_KEYS).map(([stateKey, localKey]) => [localKey, stateKey])
 );
@@ -56,6 +59,42 @@ function readLocalVersions() {
 
 function writeLocalVersions(versions) {
   localStorage.setItem(PERSISTENCE_VERSION_KEY, JSON.stringify(versions || {}));
+}
+
+function readPendingWrites() {
+  try {
+    const raw = localStorage.getItem(PERSISTENCE_PENDING_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function writePendingWrites(writes) {
+  localStorage.setItem(PERSISTENCE_PENDING_KEY, JSON.stringify(writes || {}));
+}
+
+function setPendingWrite(key, version) {
+  pendingPersistenceWrites.set(key, version);
+  const writes = readPendingWrites();
+  writes[key] = version;
+  writePendingWrites(writes);
+}
+
+function clearPendingWrite(key) {
+  pendingPersistenceWrites.delete(key);
+  const writes = readPendingWrites();
+  delete writes[key];
+  writePendingWrites(writes);
+}
+
+function hydratePendingWrites() {
+  const writes = readPendingWrites();
+  Object.entries(writes).forEach(([key, version]) => {
+    if (Object.prototype.hasOwnProperty.call(PERSISTENCE_KEYS, key)) {
+      pendingPersistenceWrites.set(key, Number(version) || Date.now());
+    }
+  });
 }
 
 function getLocalVersion(key) {
@@ -130,7 +169,7 @@ function isRemoteOlderThanLocal(serverState, key, localValue) {
   const remoteVersion = getRemoteVersion(serverState, key);
   const localScore = countMeaningfulValues(localValue);
 
-  if (localVersion > 0 && remoteVersion < localVersion) {
+  if (pendingPersistenceWrites.has(key) && localVersion > 0 && remoteVersion < localVersion) {
     return true;
   }
 
@@ -162,26 +201,61 @@ function dispatchPersistenceUpdate(changedKeys) {
 
 async function pushPersistenceValue(key, value) {
   if (!persistenceServerAvailable) {
-    pendingPersistenceWrites.delete(key);
+    startPersistenceReconnect();
     return;
   }
+
+  const version = pendingPersistenceWrites.get(key) || getLocalVersion(key) || Date.now();
 
   try {
     const response = await fetch(`/api/state/${encodeURIComponent(key)}`, {
       method: "PUT",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Station13-Client-Version": String(version)
       },
       body: JSON.stringify(value)
     });
+    if (response.status === 409) {
+      clearPendingWrite(key);
+      void pollRemotePersistence();
+      return;
+    }
     if (!response.ok) {
       throw new Error("Could not save remote state.");
     }
+    clearPendingWrite(key);
   } catch (error) {
     persistenceServerAvailable = false;
-  } finally {
-    pendingPersistenceWrites.delete(key);
+    stopPersistencePolling();
+    startPersistenceReconnect();
   }
+}
+
+function reconcilePendingWrites(serverState) {
+  Array.from(pendingPersistenceWrites.keys()).forEach((key) => {
+    const localVersion = getLocalVersion(key);
+    const remoteVersion = getRemoteVersion(serverState, key);
+    if (remoteVersion >= localVersion && remoteVersion > 0) {
+      clearPendingWrite(key);
+    }
+  });
+}
+
+function flushPendingPersistenceWrites() {
+  if (!persistenceServerAvailable) {
+    startPersistenceReconnect();
+    return;
+  }
+
+  pendingPersistenceWrites.forEach((version, key) => {
+    const localValue = readLocalPersistence(key, null);
+    if (localValue !== null && localValue !== undefined) {
+      void pushPersistenceValue(key, localValue);
+    } else {
+      clearPendingWrite(key);
+    }
+  });
 }
 
 function mergeRemoteState(serverState) {
@@ -234,10 +308,13 @@ async function pollRemotePersistence() {
       throw new Error("Could not load remote state.");
     }
     const serverState = await response.json();
+    reconcilePendingWrites(serverState);
     mergeRemoteState(serverState);
+    flushPendingPersistenceWrites();
   } catch (error) {
     persistenceServerAvailable = false;
     stopPersistencePolling();
+    startPersistenceReconnect();
   } finally {
     persistencePollingInFlight = false;
   }
@@ -250,6 +327,48 @@ function startPersistencePolling() {
 
   persistencePollingTimer = window.setInterval(pollRemotePersistence, POLLING_INTERVAL_MS);
   void pollRemotePersistence();
+}
+
+async function reconnectPersistence() {
+  if (persistenceServerAvailable || persistencePollingInFlight) {
+    return;
+  }
+
+  persistencePollingInFlight = true;
+  try {
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("Could not reconnect remote state.");
+    }
+    const serverState = await response.json();
+    persistenceServerAvailable = true;
+    stopPersistenceReconnect();
+    reconcilePendingWrites(serverState);
+    mergeRemoteState(serverState);
+    flushPendingPersistenceWrites();
+    startPersistencePolling();
+  } catch (error) {
+    persistenceServerAvailable = false;
+  } finally {
+    persistencePollingInFlight = false;
+  }
+}
+
+function startPersistenceReconnect() {
+  if (persistenceServerAvailable || persistenceReconnectTimer) {
+    return;
+  }
+
+  persistenceReconnectTimer = window.setInterval(reconnectPersistence, RECONNECT_INTERVAL_MS);
+}
+
+function stopPersistenceReconnect() {
+  if (!persistenceReconnectTimer) {
+    return;
+  }
+
+  window.clearInterval(persistenceReconnectTimer);
+  persistenceReconnectTimer = null;
 }
 
 function stopPersistencePolling() {
@@ -269,15 +388,20 @@ async function initializePersistence() {
   persistenceReady = (async () => {
     let serverState = {};
 
+    hydratePendingWrites();
+
     try {
       const response = await fetch("/api/state", { cache: "no-store" });
       if (response.ok) {
         serverState = await response.json();
         persistenceServerAvailable = true;
+        stopPersistenceReconnect();
       }
     } catch (error) {
       persistenceServerAvailable = false;
     }
+
+    reconcilePendingWrites(serverState);
 
     Object.keys(PERSISTENCE_KEYS).forEach((key) => {
       const fallbackValue = readLocalPersistence(key, null);
@@ -300,6 +424,11 @@ async function initializePersistence() {
     });
 
     startPersistencePolling();
+    if (!persistenceServerAvailable) {
+      startPersistenceReconnect();
+    } else {
+      flushPendingPersistenceWrites();
+    }
   })();
 
   return persistenceReady;
@@ -320,7 +449,7 @@ function savePersistenceValue(key, value) {
   persistenceState[key] = cloneValue(value);
   writeLocalPersistence(key, value);
   setLocalVersion(key, version);
-  pendingPersistenceWrites.add(key);
+  setPendingWrite(key, version);
   void pushPersistenceValue(key, value);
   return cloneValue(value);
 }
@@ -338,7 +467,6 @@ window.addEventListener("storage", (event) => {
     }
 
     persistenceState[key] = cloneValue(nextValue);
-    setLocalVersion(key);
     dispatchPersistenceUpdate([key]);
   } catch (error) {
     // Ignore malformed localStorage updates from outside this app.
@@ -347,8 +475,18 @@ window.addEventListener("storage", (event) => {
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
-    void pollRemotePersistence();
+    if (persistenceServerAvailable) {
+      void pollRemotePersistence();
+    } else {
+      startPersistenceReconnect();
+      void reconnectPersistence();
+    }
   }
+});
+
+window.addEventListener("online", () => {
+  startPersistenceReconnect();
+  void reconnectPersistence();
 });
 
 window.storageService = {
