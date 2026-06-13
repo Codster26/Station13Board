@@ -982,6 +982,7 @@ function applyDailyCrewHourToRidingBoard(state, dateKey, hourLabel) {
   const boardData = clone(currentState.boardData || {});
   const assignments = { ...(boardData.assignments || {}) };
   const apparatusSlots = { ...(assignments.__apparatus_slots || {}) };
+  let clearedDailyCrewEntries = 0;
 
   DAILY_CREW_APPARATUS_SLOTS.forEach((slot) => {
     const sourceType = dailyCrewsData[`${shift.id}-${hourLabel}-${slot.sourceId}-apparatus`] || slot.defaultType;
@@ -997,6 +998,10 @@ function applyDailyCrewHourToRidingBoard(state, dateKey, hourLabel) {
       const targetKey = `rig-${slot.targetId}-${positionId}`;
       const value = String(dailyCrewsData[sourceKey] || "").trim();
       assignments[targetKey] = value || "Open Assignment";
+      if (Object.prototype.hasOwnProperty.call(dailyCrewsData, sourceKey)) {
+        delete dailyCrewsData[sourceKey];
+        clearedDailyCrewEntries += 1;
+      }
     });
   });
 
@@ -1007,6 +1012,7 @@ function applyDailyCrewHourToRidingBoard(state, dateKey, hourLabel) {
     ...boardData,
     assignments
   };
+  currentState.dailyCrewsData = dailyCrewsData;
   currentState.systemMeta = {
     ...(currentState.systemMeta || {}),
     lastDailyCrewBoardSyncKey: syncKey
@@ -1016,7 +1022,8 @@ function applyDailyCrewHourToRidingBoard(state, dateKey, hourLabel) {
     state: currentState,
     applied: true,
     shiftId: shift.id,
-    hourLabel
+    hourLabel,
+    clearedDailyCrewEntries
   };
 }
 
@@ -1209,7 +1216,7 @@ export default {
           }
         : state;
       const result = applyDailyCrewHourToRidingBoard(sourceState, dateKey, hourLabel);
-      await persistFullState(env, result.state, result.applied ? ["boardData", "systemMeta"] : ["systemMeta"]);
+      await persistFullState(env, result.state, result.applied ? ["boardData", "dailyCrewsData", "systemMeta"] : ["systemMeta"]);
 
       return Response.json({
         ok: true,
@@ -1272,13 +1279,13 @@ export default {
     let nextState = dailyCrewSync.state;
 
     if (currentHourLabel !== "0000") {
-      await persistFullState(env, nextState, dailyCrewSync.applied ? ["boardData", "systemMeta"] : ["systemMeta"]);
+      await persistFullState(env, nextState, dailyCrewSync.applied ? ["boardData", "dailyCrewsData", "systemMeta"] : ["systemMeta"]);
       return;
     }
 
     const sourceDateKey = addDaysToDateKey(currentDateKey, -1);
     if (nextState.systemMeta?.lastScheduledSourceDate === sourceDateKey) {
-      await persistFullState(env, nextState, dailyCrewSync.applied ? ["boardData", "systemMeta"] : ["systemMeta"]);
+      await persistFullState(env, nextState, dailyCrewSync.applied ? ["boardData", "dailyCrewsData", "systemMeta"] : ["systemMeta"]);
       return;
     }
 
