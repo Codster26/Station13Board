@@ -91,9 +91,10 @@
     spacer.appendChild(shell);
 
     const canvasWidth = getCanvasWidth(shell, options);
+    const initialFitWidth = Number(options.initialFitWidth || canvasWidth);
     const initialScale = options.initialScale
       ? Number(options.initialScale)
-      : Math.min(Number(options.initialMaxScale || 0.5), Math.max(Number(options.initialMinScale || 0.16), window.innerWidth / canvasWidth));
+      : Math.min(Number(options.initialMaxScale || 0.5), Math.max(Number(options.initialMinScale || 0.16), window.innerWidth / initialFitWidth));
 
     let refreshFrame = 0;
     const observer = new MutationObserver(() => {
@@ -180,7 +181,8 @@
   function init() {
     const isBoard = document.body.classList.contains("board-page");
     setup({
-      canvasWidth: isBoard ? 2040 : 1280,
+      canvasWidth: isBoard ? 2160 : 1280,
+      initialFitWidth: isBoard ? 2040 : 1280,
       minHeight: isBoard ? 1080 : 900,
       initialMaxScale: isBoard ? 0.34 : 0.45,
       initialMinScale: isBoard ? 0.14 : 0.18,
