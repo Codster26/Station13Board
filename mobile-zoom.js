@@ -181,8 +181,9 @@
   function init() {
     const isBoard = document.body.classList.contains("board-page");
     setup({
-      canvasWidth: isBoard ? 2160 : 1280,
-      initialFitWidth: isBoard ? 2040 : 1280,
+      canvasWidth: isBoard ? 2380 : 1280,
+      initialFitWidth: isBoard ? 2380 : 1280,
+      initialScale: isBoard ? 0.34 : undefined,
       minHeight: isBoard ? 1080 : 900,
       initialMaxScale: isBoard ? 0.34 : 0.45,
       initialMinScale: isBoard ? 0.14 : 0.18,

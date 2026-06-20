@@ -2259,9 +2259,10 @@ body::before {
     --board-calendar-line-height: 1.28;
     --riding-left-gap: 6px;
     display: grid;
-    grid-template-columns: 250px minmax(0, 1fr);
+    grid-template-columns: 250px 2100px;
     gap: 6px;
     align-items: start;
+    width: max-content;
   }
 
   .board-page .riding-left-stack {
@@ -2369,6 +2370,8 @@ body::before {
 
   .board-page .board-calendar-stack {
     gap: 10px;
+    width: 2100px;
+    min-width: 2100px;
   }
 
   .board-page .board-calendar-stack .daily-calendar-card {
