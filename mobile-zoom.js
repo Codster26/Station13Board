@@ -59,6 +59,29 @@
     viewport.scrollTop = (contentY * scale) - anchorY;
   }
 
+  function applyInitialViewportPosition() {
+    if (!zoomState) {
+      return;
+    }
+
+    const { viewport, options } = zoomState;
+    const left = Number(options.initialScrollLeft || 0);
+    const top = Number(options.initialScrollTop || 0);
+
+    window.scrollTo(0, 0);
+    viewport.scrollLeft = left;
+    viewport.scrollTop = top;
+  }
+
+  function lockInitialView() {
+    if (!zoomState) {
+      return;
+    }
+
+    applyZoom(zoomState.scale);
+    applyInitialViewportPosition();
+  }
+
   function setup(options = {}) {
     if (!isMobileZoomTarget()) {
       return null;
@@ -114,10 +137,15 @@
     };
 
     applyZoom(initialScale);
+    applyInitialViewportPosition();
     observer.observe(shell, {
       childList: true,
       subtree: true
     });
+
+    window.requestAnimationFrame(lockInitialView);
+    window.setTimeout(lockInitialView, 150);
+    window.setTimeout(lockInitialView, 600);
 
     viewport.addEventListener("touchstart", (event) => {
       if (event.touches.length !== 2) {
@@ -179,11 +207,17 @@
   };
 
   function init() {
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+
     const isBoard = document.body.classList.contains("board-page");
     setup({
       canvasWidth: isBoard ? 2380 : 1280,
       initialFitWidth: isBoard ? 2380 : 1280,
       initialScale: isBoard ? 0.34 : undefined,
+      initialScrollLeft: 0,
+      initialScrollTop: 0,
       minHeight: isBoard ? 1080 : 900,
       initialMaxScale: isBoard ? 0.34 : 0.45,
       initialMinScale: isBoard ? 0.14 : 0.18,
